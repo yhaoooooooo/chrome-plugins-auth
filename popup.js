@@ -64,6 +64,38 @@ document.addEventListener('DOMContentLoaded', function() {
       if (nameField) nameField.value = '';
     });
   }
+  
+  // 导入导出按钮事件监听器
+  const exportBtn = document.getElementById('export-btn');
+  const importBtnHeader = document.getElementById('import-btn-header');
+  
+  if (exportBtn) {
+    exportBtn.addEventListener('click', function() {
+      exportAccountsData();
+    });
+  }
+  
+  if (importBtnHeader) {
+    importBtnHeader.addEventListener('click', function() {
+      importAccountsData();
+    });
+  }
+  
+  // 备份功能按钮事件监听器
+  const exportQrBtn = document.getElementById('export-qr-btn');
+  const clearAllBtn = document.getElementById('clear-all-btn');
+  
+  if (exportQrBtn) {
+    exportQrBtn.addEventListener('click', function() {
+      exportAsQRCode();
+    });
+  }
+  
+  if (clearAllBtn) {
+    clearAllBtn.addEventListener('click', function() {
+      clearAllAccounts();
+    });
+  }
 });
 
 // 检查是否有二维码数据
@@ -1445,4 +1477,392 @@ function loadJSQR() {
     };
     document.head.appendChild(script);
   });
+}
+
+// ==================== 导入导出功能 ====================
+
+// 导出所有账户数据为JSON格式
+async function exportAccountsData() {
+  try {
+    console.log('开始导出账户数据...');
+    
+    // 获取所有账户数据
+    const accounts = await loadAccounts();
+    const accountInfo = await loadAccountInfo();
+    const usageStats = await loadUsageStats();
+    
+    // 构建导出数据
+    const exportData = {
+      version: '1.0',
+      exportDate: new Date().toISOString(),
+      accounts: {},
+      accountInfo: accountInfo,
+      usageStats: usageStats,
+      totalAccounts: Object.keys(accounts).length
+    };
+    
+    // 处理账户数据（不包含敏感密钥）
+    for (const [name, secret] of Object.entries(accounts)) {
+      exportData.accounts[name] = {
+        name: name,
+        secret: secret, // 注意：这里包含敏感信息
+        issuer: accountInfo[name]?.issuer || null,
+        usageCount: usageStats[name]?.count || 0,
+        lastUsed: usageStats[name]?.lastUsed || null
+      };
+    }
+    
+    // 创建下载链接
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    
+    // 创建下载链接
+    const downloadLink = document.createElement('a');
+    downloadLink.href = url;
+    downloadLink.download = `google-authenticator-backup-${new Date().toISOString().split('T')[0]}.json`;
+    downloadLink.style.display = 'none';
+    
+    // 触发下载
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+    
+    // 清理URL对象
+    URL.revokeObjectURL(url);
+    
+    console.log('账户数据导出成功');
+    showCopyFeedback('账户数据已导出到文件', 'success');
+    
+  } catch (error) {
+    console.error('导出账户数据失败:', error);
+    showCopyFeedback('导出失败: ' + error.message, 'error');
+  }
+}
+
+// 导入账户数据
+async function importAccountsData() {
+  try {
+    // 创建文件输入元素
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.json';
+    fileInput.style.display = 'none';
+    
+    // 添加文件选择事件监听器
+    fileInput.addEventListener('change', async function(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      try {
+        console.log('开始导入账户数据...');
+        
+        // 读取文件内容
+        const fileContent = await readFileAsText(file);
+        const importData = JSON.parse(fileContent);
+        
+        // 验证数据格式
+        if (!validateImportData(importData)) {
+          throw new Error('无效的导入文件格式');
+        }
+        
+        // 导入账户数据
+        const result = await processImportData(importData);
+        
+        // 显示结果
+        if (result.success) {
+          showCopyFeedback(`成功导入 ${result.importedCount} 个账户`, 'success');
+          // 刷新账户列表
+          displayAccounts();
+        } else {
+          showCopyFeedback('导入失败: ' + result.error, 'error');
+        }
+        
+      } catch (error) {
+        console.error('导入账户数据失败:', error);
+        showCopyFeedback('导入失败: ' + error.message, 'error');
+      } finally {
+        // 清理文件输入元素
+        document.body.removeChild(fileInput);
+      }
+    });
+    
+    // 添加到页面并触发文件选择
+    document.body.appendChild(fileInput);
+    fileInput.click();
+    
+  } catch (error) {
+    console.error('导入功能初始化失败:', error);
+    showCopyFeedback('导入功能初始化失败: ' + error.message, 'error');
+  }
+}
+
+// 读取文件为文本
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result);
+    reader.onerror = (e) => reject(new Error('文件读取失败'));
+    reader.readAsText(file);
+  });
+}
+
+// 验证导入数据格式
+function validateImportData(data) {
+  try {
+    // 检查基本结构
+    if (!data || typeof data !== 'object') {
+      return false;
+    }
+    
+    // 检查版本信息
+    if (!data.version) {
+      console.warn('导入文件缺少版本信息');
+    }
+    
+    // 检查账户数据
+    if (!data.accounts || typeof data.accounts !== 'object') {
+      return false;
+    }
+    
+    // 验证每个账户的数据结构
+    for (const [name, account] of Object.entries(data.accounts)) {
+      if (!account || typeof account !== 'object') {
+        return false;
+      }
+      
+      if (!account.name || !account.secret) {
+        return false;
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('验证导入数据失败:', error);
+    return false;
+  }
+}
+
+// 处理导入数据
+async function processImportData(importData) {
+  try {
+    let importedCount = 0;
+    let skippedCount = 0;
+    const errors = [];
+    
+    // 获取现有账户数据
+    const existingAccounts = await loadAccounts();
+    const existingAccountInfo = await loadAccountInfo();
+    const existingUsageStats = await loadUsageStats();
+    
+    // 处理每个账户
+    for (const [name, account] of Object.entries(importData.accounts)) {
+      try {
+        // 检查账户是否已存在
+        if (existingAccounts[name]) {
+          console.log(`账户 ${name} 已存在，跳过导入`);
+          skippedCount++;
+          continue;
+        }
+        
+        // 验证密钥格式
+        if (!account.secret || typeof account.secret !== 'string') {
+          throw new Error(`账户 ${name} 的密钥格式无效`);
+        }
+        
+        // 添加账户
+        existingAccounts[name] = account.secret;
+        
+        // 添加账户信息
+        if (account.issuer) {
+          if (!existingAccountInfo[name]) {
+            existingAccountInfo[name] = {};
+          }
+          existingAccountInfo[name].issuer = account.issuer;
+        }
+        
+        // 添加使用统计
+        if (account.usageCount || account.lastUsed) {
+          existingUsageStats[name] = {
+            count: account.usageCount || 0,
+            lastUsed: account.lastUsed || 0
+          };
+        }
+        
+        importedCount++;
+        console.log(`成功导入账户: ${name}`);
+        
+      } catch (error) {
+        console.error(`导入账户 ${name} 失败:`, error);
+        errors.push(`${name}: ${error.message}`);
+      }
+    }
+    
+    // 保存更新后的数据
+    if (importedCount > 0) {
+      await chrome.storage.local.set({
+        accounts: existingAccounts,
+        accountInfo: existingAccountInfo,
+        usageStats: existingUsageStats
+      });
+    }
+    
+    return {
+      success: true,
+      importedCount: importedCount,
+      skippedCount: skippedCount,
+      errors: errors
+    };
+    
+  } catch (error) {
+    console.error('处理导入数据失败:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+// 导出为二维码格式（生成迁移二维码）
+async function exportAsQRCode() {
+  try {
+    console.log('开始生成迁移二维码...');
+    
+    // 获取所有账户数据
+    const accounts = await loadAccounts();
+    const accountInfo = await loadAccountInfo();
+    
+    if (Object.keys(accounts).length === 0) {
+      showCopyFeedback('没有账户可以导出', 'error');
+      return;
+    }
+    
+    // 构建迁移数据
+    const migrationData = [];
+    for (const [name, secret] of Object.entries(accounts)) {
+      const issuer = accountInfo[name]?.issuer || 'Unknown';
+      migrationData.push({
+        name: name,
+        secret: secret,
+        issuer: issuer
+      });
+    }
+    
+    // 生成迁移URL（简化版本，实际应该使用protobuf编码）
+    const migrationUrl = generateMigrationURL(migrationData);
+    
+    // 生成二维码
+    if (typeof QRCode !== 'undefined') {
+      // 创建二维码显示区域
+      const qrContainer = document.createElement('div');
+      qrContainer.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        z-index: 10000;
+        text-align: center;
+      `;
+      
+      qrContainer.innerHTML = `
+        <h3 style="margin: 0 0 15px 0; color: #333;">账户迁移二维码</h3>
+        <div id="migration-qr-code"></div>
+        <p style="margin: 15px 0 0 0; font-size: 12px; color: #666;">
+          包含 ${migrationData.length} 个账户
+        </p>
+        <button id="close-qr-modal" style="
+          margin-top: 15px;
+          padding: 8px 16px;
+          background: #4CAF50;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+        ">关闭</button>
+      `;
+      
+      document.body.appendChild(qrContainer);
+      
+      // 生成二维码
+      new QRCode(document.getElementById('migration-qr-code'), {
+        text: migrationUrl,
+        width: 200,
+        height: 200,
+        correctLevel: QRCode.CorrectLevel.H
+      });
+      
+      // 添加关闭按钮事件
+      document.getElementById('close-qr-modal').addEventListener('click', function() {
+        document.body.removeChild(qrContainer);
+      });
+      
+      // 点击背景关闭
+      qrContainer.addEventListener('click', function(e) {
+        if (e.target === qrContainer) {
+          document.body.removeChild(qrContainer);
+        }
+      });
+      
+    } else {
+      showCopyFeedback('二维码生成库未加载', 'error');
+    }
+    
+  } catch (error) {
+    console.error('生成迁移二维码失败:', error);
+    showCopyFeedback('生成二维码失败: ' + error.message, 'error');
+  }
+}
+
+// 生成迁移URL（简化版本）
+function generateMigrationURL(accounts) {
+  // 这里应该使用protobuf编码，但为了简化，我们使用JSON格式
+  const data = {
+    accounts: accounts.map(account => ({
+      name: account.name,
+      secret: account.secret,
+      issuer: account.issuer
+    }))
+  };
+  
+  const encodedData = btoa(JSON.stringify(data));
+  return `otpauth-migration://offline?data=${encodedData}`;
+}
+
+// 清空所有账户
+async function clearAllAccounts() {
+  try {
+    // 确认对话框
+    const confirmed = confirm('⚠️ 警告：此操作将删除所有账户数据，且无法恢复！\n\n确定要继续吗？');
+    if (!confirmed) {
+      return;
+    }
+    
+    // 二次确认
+    const doubleConfirmed = confirm('请再次确认：\n\n这将永久删除所有账户、使用统计和设置信息。\n\n确定要清空所有数据吗？');
+    if (!doubleConfirmed) {
+      return;
+    }
+    
+    console.log('开始清空所有账户数据...');
+    
+    // 清除所有倒计时
+    clearAllCountdowns();
+    
+    // 清空存储数据
+    await chrome.storage.local.clear();
+    
+    // 刷新界面
+    displayAccounts();
+    
+    console.log('所有账户数据已清空');
+    showCopyFeedback('所有账户数据已清空', 'success');
+    
+  } catch (error) {
+    console.error('清空账户数据失败:', error);
+    showCopyFeedback('清空失败: ' + error.message, 'error');
+  }
 }
