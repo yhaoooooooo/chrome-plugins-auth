@@ -1,0 +1,1448 @@
+// popup.js - Google Authenticator 扩展弹出窗口逻辑
+
+// 引入Google身份验证器类
+let authenticator;
+
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('Popup DOM已加载');
+  
+  // 确保authenticator已初始化
+  if (typeof GoogleAuthenticator !== 'undefined') {
+    authenticator = new GoogleAuthenticator();
+    console.log('GoogleAuthenticator已初始化');
+  } else {
+    console.error('GoogleAuthenticator库未加载');
+  }
+  
+  // 测试表单元素
+  const secretField = document.getElementById('secret-key');
+  const nameField = document.getElementById('account-name');
+  const addBtn = document.getElementById('add-btn');
+  const scanBtn = document.getElementById('scan-btn');
+  
+  console.log('表单元素检查:');
+  console.log('- secret-key:', secretField);
+  console.log('- account-name:', nameField);
+  console.log('- add-btn:', addBtn);
+  console.log('- scan-btn:', scanBtn);
+  
+  // 检查是否有二维码数据
+  checkForQRData();
+  
+  // 加载已保存的账户
+  displayAccounts();
+  
+  // 根据当前域名自动筛选
+  autoFilterByCurrentDomain();
+  
+  // 定期更新所有令牌
+  setInterval(async function() {
+    displayAccounts();
+  }, 10000); // 每10秒更新一次账户列表中的令牌
+  
+  // 添加账户按钮事件监听器
+  const addAccountBtn = document.getElementById('add-account-btn');
+  const addAccountPanel = document.getElementById('add-account-panel');
+  const closePanelBtn = document.getElementById('close-panel');
+  
+  if (addAccountBtn && addAccountPanel) {
+    addAccountBtn.addEventListener('click', function() {
+      addAccountPanel.style.display = 'block';
+      addAccountBtn.style.display = 'none';
+    });
+  }
+  
+  if (closePanelBtn && addAccountPanel) {
+    closePanelBtn.addEventListener('click', function() {
+      addAccountPanel.style.display = 'none';
+      addAccountBtn.style.display = 'block';
+      
+      // 清空表单
+      const secretField = document.getElementById('secret-key');
+      const nameField = document.getElementById('account-name');
+      if (secretField) secretField.value = '';
+      if (nameField) nameField.value = '';
+    });
+  }
+});
+
+// 检查是否有二维码数据
+function checkForQRData() {
+  console.log('=== 开始检查二维码数据 ===');
+  console.log('发送getQRData消息到background script...');
+  
+  chrome.runtime.sendMessage({action: 'getQRData'}, function(response) {
+    console.log('=== 二维码数据检查结果 ===');
+    console.log('chrome.runtime.lastError:', chrome.runtime.lastError);
+    console.log('响应内容:', response);
+    
+    if (chrome.runtime.lastError) {
+      console.error('❌ 获取二维码数据失败:', chrome.runtime.lastError);
+      return;
+    }
+    
+    if (response.success && response.hasData) {
+      console.log('✅ 发现二维码数据:', response.data);
+      console.log('✅ 开始填充表单');
+      fillFormWithQRData(response.data);
+    } else {
+      console.log('ℹ️ 没有二维码数据');
+      console.log('响应详情:', response);
+    }
+    console.log('=== 二维码数据检查完成 ===');
+  });
+}
+
+// 用二维码数据填充表单
+function fillFormWithQRData(data) {
+  console.log('填充表单数据:', data);
+  console.log('表单元素检查:');
+  console.log('- secret-key元素:', document.getElementById('secret-key'));
+  console.log('- account-name元素:', document.getElementById('account-name'));
+  
+  if (data.migrationData && data.migrationData.length > 0) {
+    // 处理迁移数据
+    console.log('处理迁移数据，包含', data.migrationData.length, '个账户');
+    
+    // 填充第一个账户
+    const firstAccount = data.migrationData[0];
+    console.log('第一个账户数据:', firstAccount);
+    
+    if (firstAccount.secret) {
+      const secretField = document.getElementById('secret-key');
+      const nameField = document.getElementById('account-name');
+      
+      if (secretField) {
+        secretField.value = firstAccount.secret;
+        console.log('密钥已填充:', firstAccount.secret);
+      } else {
+        console.error('找不到secret-key元素');
+      }
+      
+      if (nameField) {
+        if (firstAccount.issuer) {
+          nameField.value = firstAccount.issuer;
+        } else if (firstAccount.name) {
+          nameField.value = firstAccount.name;
+        }
+        console.log('账户名称已填充:', nameField.value);
+      } else {
+        console.error('找不到account-name元素');
+      }
+      
+      // 显示成功消息
+      alert(`检测到Google Authenticator迁移数据！包含${data.migrationData.length}个账户，已填充第一个账户：${firstAccount.name || firstAccount.issuer || 'Unknown'}`);
+      
+      // 清除background中的二维码数据
+      chrome.runtime.sendMessage({action: 'clearQRData'}, function(response) {
+        console.log('清除二维码数据响应:', response);
+      });
+    } else {
+      console.error('迁移数据中没有找到密钥');
+      alert('迁移数据解析失败，无法提取密钥。');
+    }
+  } else if (data.secret) {
+    // 处理单个账户数据
+    console.log('处理单个账户数据:', data);
+    
+    const secretField = document.getElementById('secret-key');
+    const nameField = document.getElementById('account-name');
+    
+    if (secretField) {
+      secretField.value = data.secret;
+      console.log('密钥已填充:', data.secret);
+    }
+    
+    if (nameField) {
+      if (data.issuer) {
+        nameField.value = data.issuer;
+      } else if (data.label) {
+        nameField.value = data.label;
+      }
+      console.log('账户名称已填充:', nameField.value);
+    }
+    
+    // 显示成功消息
+    alert('检测到二维码数据！密钥已自动填充。');
+    
+    // 清除background中的二维码数据
+    chrome.runtime.sendMessage({action: 'clearQRData'}, function(response) {
+      console.log('清除二维码数据响应:', response);
+    });
+  } else if (data.rawData) {
+    // 尝试解析rawData
+    console.log('处理原始数据:', data.rawData);
+    
+    const otpauthRegex = /otpauth:\/\/totp\/[^?]+\?secret=([^&]+)/i;
+    const match = data.rawData.match(otpauthRegex);
+    if (match && match[1]) {
+      const secretField = document.getElementById('secret-key');
+      if (secretField) {
+        secretField.value = match[1];
+        console.log('从原始数据提取密钥:', match[1]);
+      }
+      alert('检测到二维码数据！密钥已自动填充。');
+      
+      // 清除background中的二维码数据
+      chrome.runtime.sendMessage({action: 'clearQRData'}, function(response) {
+        console.log('清除二维码数据响应:', response);
+      });
+    } else {
+      console.error('无法从原始数据中提取密钥');
+      alert('检测到二维码数据，但格式无法识别。请手动处理。');
+    }
+  } else {
+    console.error('未检测到有效的二维码数据');
+    alert('未检测到有效的二维码数据。');
+  }
+}
+
+// 生成TOTP (Time-based One-time Password)
+async function generateTOTP(secret, period = 30) {
+  if (!authenticator) {
+    console.error('Authenticator未初始化');
+    return '--:--:--';
+  }
+  return await authenticator.generateTOTP(secret, period);
+}
+
+// 保存账户到存储
+function saveAccount(accountName, secret, issuer = null) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get(['accounts', 'accountInfo'], function(result) {
+      const accounts = result.accounts || {};
+      const accountInfo = result.accountInfo || {};
+      
+      accounts[accountName] = secret;
+      if (issuer) {
+        accountInfo[accountName] = { issuer: issuer };
+      }
+      
+      const dataToSave = { accounts: accounts };
+      if (issuer) {
+        dataToSave.accountInfo = accountInfo;
+      }
+      
+      chrome.storage.local.set(dataToSave, function() {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+        } else {
+          resolve();
+        }
+      });
+    });
+  });
+}
+
+// 从存储中加载账户列表
+function loadAccounts() {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get(['accounts'], function(result) {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+      } else {
+        resolve(result.accounts || {});
+      }
+    });
+  });
+}
+
+// 从存储中加载账户信息
+function loadAccountInfo() {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get(['accountInfo'], function(result) {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+      } else {
+        resolve(result.accountInfo || {});
+      }
+    });
+  });
+}
+
+// 从存储中加载使用频率数据
+function loadUsageStats() {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get(['usageStats'], function(result) {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+      } else {
+        resolve(result.usageStats || {});
+      }
+    });
+  });
+}
+
+// 保存使用频率数据
+function saveUsageStats(usageStats) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set({ usageStats: usageStats }, function() {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+      } else {
+        resolve();
+      }
+    });
+  });
+}
+
+// 记录账户使用频率
+async function recordUsage(accountName) {
+  try {
+    const usageStats = await loadUsageStats();
+    
+    if (!usageStats[accountName]) {
+      usageStats[accountName] = {
+        count: 0,
+        lastUsed: 0
+      };
+    }
+    
+    usageStats[accountName].count += 1;
+    usageStats[accountName].lastUsed = Date.now();
+    
+    await saveUsageStats(usageStats);
+    console.log(`记录账户 ${accountName} 使用次数: ${usageStats[accountName].count}`);
+  } catch (error) {
+    console.error('记录使用频率失败:', error);
+  }
+}
+
+// 解析账户名中的issuer和name
+function parseAccountInfo(accountName, storedIssuer = null) {
+  // 移除索引后缀
+  const cleanName = accountName.replace(/_\d+$/, '');
+  
+  // 如果存储中有issuer信息，优先使用
+  if (storedIssuer) {
+    // 检查name中是否还包含issuer信息，如果有则只保留name部分
+    let displayName = cleanName;
+    if (cleanName.includes(':') && cleanName.split(':').length === 2) {
+      const parts = cleanName.split(':');
+      const namePart = parts[1];
+      displayName = namePart;
+    }
+    
+    return {
+      issuer: storedIssuer,
+      name: displayName,
+      displayName: `${storedIssuer}(${displayName})`
+    };
+  }
+  
+  // 尝试解析不同格式的账户名
+  const patterns = [
+    // 格式: issuer(name) 或 issuer:name
+    /^([^(]+)\(([^)]+)\)$/,  // issuer(name)
+    /^([^:]+):(.+)$/,        // issuer:name
+    // 格式: user@domain.com
+    /^([^@]+)@(.+)$/,        // user@domain
+    // 格式: domain.com(user)
+    /^([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\(([^)]+)\)$/,  // domain.com(user)
+  ];
+  
+  for (const pattern of patterns) {
+    const match = cleanName.match(pattern);
+    if (match) {
+      if (pattern.source.includes('@')) {
+        // 邮箱格式: user@domain.com -> domain.com(user)
+        return {
+          issuer: match[2], // domain.com
+          name: match[1],   // user
+          displayName: `${match[2]}(${match[1]})`
+        };
+      } else if (pattern.source.includes('\\(')) {
+        // 括号格式: issuer(name) 或 domain.com(user)
+        return {
+          issuer: match[1],
+          name: match[2],
+          displayName: cleanName
+        };
+      } else {
+        // 冒号格式: issuer:name
+        return {
+          issuer: match[1],
+          name: match[2],
+          displayName: `${match[1]}(${match[2]})`
+        };
+      }
+    }
+  }
+  
+  // 如果没有匹配到任何格式，直接返回原始名称
+  return {
+    issuer: null,
+    name: cleanName,
+    displayName: cleanName
+  };
+}
+
+// 显示账户列表
+async function displayAccounts() {
+  const accounts = await loadAccounts();
+  const usageStats = await loadUsageStats();
+  const accountInfo = await loadAccountInfo();
+  const container = document.getElementById('accounts-container');
+  
+  container.innerHTML = '';
+  
+  // 按使用频率排序账户
+  const sortedAccounts = Object.entries(accounts).sort(([nameA], [nameB]) => {
+    const statsA = usageStats[nameA] || { count: 0, lastUsed: 0 };
+    const statsB = usageStats[nameB] || { count: 0, lastUsed: 0 };
+    
+    // 首先按使用次数排序，然后按最后使用时间排序
+    if (statsA.count !== statsB.count) {
+      return statsB.count - statsA.count;
+    }
+    return statsB.lastUsed - statsA.lastUsed;
+  });
+  
+  for (const [name, secret] of sortedAccounts) {
+    // 解析账户信息，优先使用存储的issuer
+    const storedIssuer = accountInfo[name]?.issuer;
+    const parsedInfo = parseAccountInfo(name, storedIssuer);
+    
+    const accountDiv = document.createElement('div');
+    accountDiv.className = 'account-item';
+    accountDiv.innerHTML = `
+      <div class="account-display">
+        <div class="account-content">
+          <div class="account-name-container">
+            <div class="account-name" title="${name}">${parsedInfo.displayName}</div>
+            ${usageStats[name] && usageStats[name].count > 0 ? `<div class="usage-count" title="使用次数">${usageStats[name].count}</div>` : ''}
+          </div>
+          <div class="account-token" id="token-${name}" data-name="${name}" title="点击复制验证码">--:--:--</div>
+        </div>
+        <div class="account-right">
+          <div class="countdown-circle" id="timer-${name}">
+            <svg class="circle-svg" viewBox="0 0 36 36">
+              <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+              <path class="circle-progress" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+            </svg>
+            <div class="circle-text" id="timer-text-${name}">30</div>
+          </div>
+          <div class="account-menu">
+            <button class="menu-btn" data-name="${name}">⋯</button>
+            <div class="menu-dropdown" style="display: none;">
+              <button class="menu-item delete-btn" data-name="${name}">删除账户</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    container.appendChild(accountDiv);
+    
+    // 生成并显示当前令牌
+    try {
+      const token = await generateTOTP(secret);
+      document.getElementById(`token-${name}`).textContent = token;
+      
+      // 启动倒计时
+      startCountdown(name);
+    } catch (error) {
+      console.error(`生成账户 ${name} 的令牌时出错:`, error);
+      document.getElementById(`token-${name}`).textContent = '错误';
+      const textElement = document.getElementById(`timer-text-${name}`);
+      if (textElement) {
+        textElement.textContent = '--';
+      }
+    }
+  }
+  
+  // 添加菜单按钮事件监听器
+  document.querySelectorAll('.menu-btn').forEach(button => {
+    button.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const accountName = this.getAttribute('data-name');
+      toggleMenu(accountName);
+    });
+  });
+  
+  // 添加删除按钮事件监听器
+  document.querySelectorAll('.delete-btn').forEach(button => {
+    button.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const accountName = this.getAttribute('data-name');
+      deleteAccount(accountName);
+    });
+  });
+  
+  // 添加验证码点击复制事件监听器
+  document.querySelectorAll('.account-token').forEach(tokenElement => {
+    tokenElement.addEventListener('click', function() {
+      const token = this.textContent.trim();
+      const accountName = this.getAttribute('data-name');
+      
+      if (token && token !== '--:--:--' && token !== '错误') {
+        copyToClipboard(token);
+        
+        // 记录使用频率
+        if (accountName) {
+          recordUsage(accountName);
+        }
+      }
+    });
+  });
+  
+  // 添加筛选功能事件监听器
+  const filterInput = document.getElementById('filter-input');
+  const clearFilterBtn = document.getElementById('clear-filter');
+  
+  if (filterInput) {
+    filterInput.addEventListener('input', function() {
+      filterAccounts(this.value);
+    });
+  }
+  
+  if (clearFilterBtn) {
+    clearFilterBtn.addEventListener('click', function() {
+      filterInput.value = '';
+      filterInput.placeholder = '筛选域名或账户名...';
+      filterAccounts('');
+      
+      // 移除自动筛选指示器
+      const indicator = document.getElementById('auto-filter-indicator');
+      if (indicator) {
+        indicator.remove();
+      }
+    });
+  }
+  
+  // 点击其他地方关闭菜单
+  document.addEventListener('click', function() {
+    closeAllMenus();
+  });
+}
+
+// 切换菜单显示/隐藏
+function toggleMenu(accountName) {
+  const menu = document.querySelector(`.menu-btn[data-name="${accountName}"]`).parentElement.querySelector('.menu-dropdown');
+  const isVisible = menu.style.display !== 'none';
+  
+  // 先关闭所有菜单
+  closeAllMenus();
+  
+  // 如果当前菜单是隐藏的，则显示它
+  if (!isVisible) {
+    menu.style.display = 'block';
+  }
+}
+
+// 关闭所有菜单
+function closeAllMenus() {
+  document.querySelectorAll('.menu-dropdown').forEach(menu => {
+    menu.style.display = 'none';
+  });
+}
+
+// 复制到剪贴板
+async function copyToClipboard(text) {
+  try {
+    // 使用现代的 Clipboard API
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      showCopyFeedback('验证码已复制到剪贴板');
+    } else {
+      // 备用方法：使用传统的 document.execCommand
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      if (successful) {
+        showCopyFeedback('验证码已复制到剪贴板');
+      } else {
+        showCopyFeedback('复制失败，请手动复制', 'error');
+      }
+    }
+  } catch (error) {
+    console.error('复制失败:', error);
+    showCopyFeedback('复制失败，请手动复制', 'error');
+  }
+}
+
+// 显示复制反馈
+function showCopyFeedback(message, type = 'success') {
+  // 创建或更新反馈元素
+  let feedback = document.getElementById('copy-feedback');
+  if (!feedback) {
+    feedback = document.createElement('div');
+    feedback.id = 'copy-feedback';
+    feedback.style.cssText = `
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+      z-index: 10000;
+      transition: all 0.3s ease;
+      pointer-events: none;
+    `;
+    document.body.appendChild(feedback);
+  }
+  
+  // 设置样式和内容
+  if (type === 'success') {
+    feedback.style.backgroundColor = '#4CAF50';
+    feedback.style.color = 'white';
+  } else {
+    feedback.style.backgroundColor = '#f44336';
+    feedback.style.color = 'white';
+  }
+  
+  feedback.textContent = message;
+  feedback.style.display = 'block';
+  feedback.style.opacity = '1';
+  
+  // 3秒后隐藏
+  setTimeout(() => {
+    feedback.style.opacity = '0';
+    setTimeout(() => {
+      feedback.style.display = 'none';
+    }, 300);
+  }, 2000);
+}
+
+// 筛选账户
+function filterAccounts(filterText) {
+  const accountItems = document.querySelectorAll('.account-item');
+  const noResultsDiv = document.getElementById('no-results');
+  let visibleCount = 0;
+  
+  if (!filterText || filterText.trim() === '') {
+    // 显示所有账户
+    accountItems.forEach(item => {
+      item.classList.remove('hidden');
+      visibleCount++;
+    });
+  } else {
+    // 筛选账户
+    const filterLower = filterText.toLowerCase().trim();
+    
+    accountItems.forEach(item => {
+      const accountName = item.querySelector('.account-name').textContent.toLowerCase();
+      const accountToken = item.querySelector('.account-token').textContent.toLowerCase();
+      
+      // 检查是否匹配账户名、域名或验证码
+      const isMatch = accountName.includes(filterLower) || 
+                     accountToken.includes(filterLower) ||
+                     extractDomain(accountName).includes(filterLower);
+      
+      if (isMatch) {
+        item.classList.remove('hidden');
+        visibleCount++;
+      } else {
+        item.classList.add('hidden');
+      }
+    });
+  }
+  
+  // 显示或隐藏"无结果"提示
+  if (visibleCount === 0 && filterText.trim() !== '') {
+    noResultsDiv.style.display = 'block';
+  } else {
+    noResultsDiv.style.display = 'none';
+  }
+}
+
+// 从账户名中提取域名
+function extractDomain(accountName) {
+  // 尝试从账户名中提取域名
+  // 支持格式: "example.com(user)", "example.com:user", "user@example.com"
+  
+  // 邮箱格式: user@example.com
+  const emailMatch = accountName.match(/([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+  if (emailMatch) {
+    return emailMatch[1].toLowerCase();
+  }
+  
+  // 括号格式: example.com(user)
+  const bracketMatch = accountName.match(/^([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\(/);
+  if (bracketMatch) {
+    return bracketMatch[1].toLowerCase();
+  }
+  
+  // 冒号格式: example.com:user
+  const colonMatch = accountName.match(/^([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}):/);
+  if (colonMatch) {
+    return colonMatch[1].toLowerCase();
+  }
+  
+  // 直接域名格式: example.com
+  const directMatch = accountName.match(/^([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$/);
+  if (directMatch) {
+    return directMatch[1].toLowerCase();
+  }
+  
+  // 如果没有找到域名，返回原始名称的小写版本
+  return accountName.toLowerCase();
+}
+
+// 根据当前域名自动筛选
+async function autoFilterByCurrentDomain() {
+  try {
+    // 获取当前活动标签页
+    const tabs = await chrome.tabs.query({active: true, currentWindow: true});
+    if (!tabs[0] || !tabs[0].url) {
+      return;
+    }
+    
+    const currentUrl = tabs[0].url;
+    console.log('当前页面URL:', currentUrl);
+    
+    // 提取域名
+    const domain = extractDomainFromUrl(currentUrl);
+    if (!domain) {
+      return;
+    }
+    
+    console.log('提取的域名:', domain);
+    
+    // 检查是否有匹配的账户
+    const hasMatchingAccounts = await checkForMatchingAccounts(domain);
+    if (hasMatchingAccounts) {
+      // 自动填充筛选框并执行筛选
+      const filterInput = document.getElementById('filter-input');
+      if (filterInput) {
+        filterInput.value = domain;
+        filterInput.placeholder = `已自动筛选: ${domain}`;
+        filterAccounts(domain);
+        
+        // 添加自动筛选指示器
+        addAutoFilterIndicator(domain);
+      }
+    }
+  } catch (error) {
+    console.error('自动筛选失败:', error);
+  }
+}
+
+// 从URL中提取域名
+function extractDomainFromUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname;
+    
+    // 移除www前缀
+    if (hostname.startsWith('www.')) {
+      return hostname.substring(4);
+    }
+    
+    return hostname;
+  } catch (error) {
+    console.error('解析URL失败:', error);
+    return null;
+  }
+}
+
+// 检查是否有匹配的账户
+async function checkForMatchingAccounts(domain) {
+  try {
+    const accounts = await loadAccounts();
+    const domainLower = domain.toLowerCase();
+    
+    for (const [name, secret] of Object.entries(accounts)) {
+      const accountDomain = extractDomain(name);
+      if (accountDomain.includes(domainLower) || domainLower.includes(accountDomain)) {
+        return true;
+      }
+    }
+    return false;
+  } catch (error) {
+    console.error('检查匹配账户失败:', error);
+    return false;
+  }
+}
+
+// 添加自动筛选指示器
+function addAutoFilterIndicator(domain) {
+  const filterContainer = document.querySelector('.filter-container');
+  if (!filterContainer) return;
+  
+  // 移除已存在的指示器
+  const existingIndicator = document.getElementById('auto-filter-indicator');
+  if (existingIndicator) {
+    existingIndicator.remove();
+  }
+  
+  // 创建指示器
+  const indicator = document.createElement('div');
+  indicator.id = 'auto-filter-indicator';
+  indicator.style.cssText = `
+    font-size: 10px;
+    color: #4CAF50;
+    margin-left: 5px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  `;
+  indicator.innerHTML = `
+    <span>🔍</span>
+    <span>自动筛选: ${domain}</span>
+  `;
+  
+  filterContainer.appendChild(indicator);
+  
+  // 5秒后自动移除指示器
+  setTimeout(() => {
+    if (indicator.parentNode) {
+      indicator.remove();
+    }
+  }, 5000);
+}
+
+// 全局倒计时存储
+const countdownTimers = {};
+
+// 启动倒计时
+function startCountdown(accountName) {
+  // 清除已存在的倒计时
+  if (countdownTimers[accountName]) {
+    clearInterval(countdownTimers[accountName]);
+  }
+  
+  // 计算当前时间窗口的剩余时间
+  const now = Math.floor(Date.now() / 1000);
+  const timeWindow = 30; // TOTP时间窗口为30秒
+  const remainingSeconds = timeWindow - (now % timeWindow);
+  
+  // 更新倒计时显示
+  updateCountdownDisplay(accountName, remainingSeconds);
+  
+  // 启动倒计时
+  countdownTimers[accountName] = setInterval(() => {
+    const currentNow = Math.floor(Date.now() / 1000);
+    const currentRemaining = timeWindow - (currentNow % timeWindow);
+    
+    if (currentRemaining <= 0) {
+      // 时间到了，刷新令牌
+      refreshToken(accountName);
+    } else {
+      updateCountdownDisplay(accountName, currentRemaining);
+    }
+  }, 1000);
+}
+
+// 更新倒计时显示
+function updateCountdownDisplay(accountName, seconds) {
+  const timerElement = document.getElementById(`timer-${accountName}`);
+  const textElement = document.getElementById(`timer-text-${accountName}`);
+  const progressElement = timerElement?.querySelector('.circle-progress');
+  
+  if (!timerElement || !textElement || !progressElement) return;
+  
+  // 更新文字显示
+  textElement.textContent = seconds;
+  
+  // 计算圆圈进度 (0-100)
+  const progress = (seconds / 30) * 100;
+  const offset = 100 - progress;
+  
+  // 更新圆圈进度
+  progressElement.style.strokeDashoffset = offset;
+  
+  // 根据剩余时间设置样式
+  progressElement.classList.remove('warning', 'critical');
+  textElement.classList.remove('warning', 'critical');
+  
+  if (seconds <= 5) {
+    progressElement.classList.add('critical');
+    textElement.classList.add('critical');
+  } else if (seconds <= 10) {
+    progressElement.classList.add('warning');
+    textElement.classList.add('warning');
+  }
+}
+
+// 刷新令牌
+async function refreshToken(accountName) {
+  try {
+    // 获取账户密钥
+    const accounts = await loadAccounts();
+    const secret = accounts[accountName];
+    
+    if (!secret) {
+      console.error(`找不到账户 ${accountName} 的密钥`);
+      return;
+    }
+    
+    // 生成新令牌
+    const newToken = await generateTOTP(secret);
+    const tokenElement = document.getElementById(`token-${accountName}`);
+    
+    if (tokenElement) {
+      tokenElement.textContent = newToken;
+    }
+    
+    // 重新启动倒计时
+    startCountdown(accountName);
+    
+  } catch (error) {
+    console.error(`刷新账户 ${accountName} 令牌时出错:`, error);
+    const textElement = document.getElementById(`timer-text-${accountName}`);
+    if (textElement) {
+      textElement.textContent = '错误';
+    }
+  }
+}
+
+// 清除所有倒计时
+function clearAllCountdowns() {
+  Object.values(countdownTimers).forEach(timer => {
+    clearInterval(timer);
+  });
+  Object.keys(countdownTimers).forEach(key => {
+    delete countdownTimers[key];
+  });
+}
+
+// 删除账户
+function deleteAccount(accountName) {
+  // 清除该账户的倒计时
+  if (countdownTimers[accountName]) {
+    clearInterval(countdownTimers[accountName]);
+    delete countdownTimers[accountName];
+  }
+  
+  chrome.storage.local.get(['accounts'], function(result) {
+    const accounts = result.accounts || {};
+    delete accounts[accountName];
+    
+    chrome.storage.local.set({ accounts: accounts }, function() {
+      displayAccounts();
+    });
+  });
+}
+
+// 显示QR码
+function displayQRCode(secret, accountName) {
+  const issuer = 'Google Authenticator Extension';
+  const uri = `otpauth://totp/${issuer}:${accountName}?secret=${secret}&issuer=${issuer}`;
+  
+  const qrContainer = document.getElementById('qr-display');
+  qrContainer.innerHTML = '';
+  
+  // 创建QR码
+  const canvas = document.createElement('canvas');
+  qrContainer.appendChild(canvas);
+  
+  // 使用qrcode库生成二维码
+  if (typeof QRCode !== 'undefined') {
+    new QRCode(canvas, {
+      text: uri,
+      width: 200,
+      height: 200,
+      correctLevel: QRCode.CorrectLevel.H
+    });
+  }
+}
+
+// 添加新账户
+document.getElementById('add-btn').addEventListener('click', async function() {
+  console.log('添加账户按钮被点击');
+  
+  const secretField = document.getElementById('secret-key');
+  const nameField = document.getElementById('account-name');
+  
+  console.log('表单字段检查:');
+  console.log('- secret-key元素:', secretField);
+  console.log('- account-name元素:', nameField);
+  
+  if (!secretField || !nameField) {
+    console.error('找不到表单字段');
+    alert('表单字段未找到，请刷新页面重试');
+    return;
+  }
+  
+  const secret = secretField.value.trim();
+  const accountName = nameField.value.trim();
+  
+  console.log('表单数据:');
+  console.log('- 密钥:', secret);
+  console.log('- 账户名称:', accountName);
+  
+  if (!secret || !accountName) {
+    alert('请输入密钥和账户名称');
+    return;
+  }
+  
+  try {
+    // 验证密钥格式
+    const testToken = await generateTOTP(secret);
+    
+    // 保存账户
+    await saveAccount(accountName, secret);
+    
+    // 更新界面
+    document.getElementById('display-secret').textContent = secret;
+    document.getElementById('token-container').style.display = 'block';
+    
+    // 显示当前令牌
+    const tokenElement = document.getElementById('current-token');
+    tokenElement.textContent = testToken;
+    
+    // 显示QR码
+    displayQRCode(secret, accountName);
+    
+    // 重置输入框并关闭面板
+    document.getElementById('secret-key').value = '';
+    document.getElementById('account-name').value = '';
+    
+    // 关闭添加面板
+    const addAccountPanel = document.getElementById('add-account-panel');
+    const addAccountBtn = document.getElementById('add-account-btn');
+    if (addAccountPanel) addAccountPanel.style.display = 'none';
+    if (addAccountBtn) addAccountBtn.style.display = 'block';
+    
+    // 更新账户列表
+    displayAccounts();
+    
+    // 设置定时更新令牌 (每30秒更新一次)
+    setInterval(async () => {
+      try {
+        const newToken = await generateTOTP(secret);
+        tokenElement.textContent = newToken;
+      } catch (error) {
+        console.error('更新令牌时出错:', error);
+        tokenElement.textContent = '错误';
+      }
+    }, 30000); // 每30秒更新一次
+    
+  } catch (error) {
+    alert('密钥格式无效，请检查后重试: ' + error.message);
+  }
+});
+
+// 扫描页面二维码按钮
+document.getElementById('scan-btn').addEventListener('click', async function() {
+  try {
+    // 获取当前活动标签页
+    const tabs = await chrome.tabs.query({active: true, currentWindow: true});
+    if (!tabs[0]) {
+      alert('无法获取当前标签页信息');
+      return;
+    }
+    
+    const tab = tabs[0];
+    
+    // 检查URL是否支持注入脚本
+    if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('moz-extension://')) {
+      alert('无法在此页面使用二维码扫描功能');
+      return;
+    }
+    
+    try {
+      // 先检查是否已经注入过脚本
+      const checkResult = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => {
+          return {
+            alreadyLoaded: !!window.googleAuthenticatorContentScriptLoaded,
+            jsQRAvailable: typeof jsQR !== 'undefined'
+          };
+        }
+      });
+      
+      const isAlreadyLoaded = checkResult[0]?.result?.alreadyLoaded;
+      const isJsQRAvailable = checkResult[0]?.result?.jsQRAvailable;
+      
+      console.log('脚本状态检查:', { isAlreadyLoaded, isJsQRAvailable });
+      
+      if (!isAlreadyLoaded) {
+        // 动态注入content script
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['js/jsQR.js', 'content.js']
+        });
+        
+        // 等待一下确保脚本加载完成
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } else if (!isJsQRAvailable) {
+        // 如果content script已加载但jsQR库未加载，只注入jsQR库
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['js/jsQR.js']
+        });
+        
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      
+      // 向内容脚本发送消息
+      chrome.tabs.sendMessage(tab.id, {action: 'scanQR'}, function(response) {
+        if (chrome.runtime.lastError) {
+          console.error('发送消息失败:', chrome.runtime.lastError);
+          alert('无法与页面通信，请刷新页面后重试。');
+        } else {
+          console.log('消息发送成功:', response);
+        }
+      });
+      
+    } catch (injectionError) {
+      console.error('注入脚本失败:', injectionError);
+      console.log('尝试使用备用扫描方法...');
+      
+      // 备用方法：直接在当前页面中扫描
+      try {
+        // 先注入jsQR库
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['js/jsQR.js']
+        });
+        
+        // 等待库加载
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // 再注入扫描函数
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: scanQRCodeDirectly
+        });
+      } catch (fallbackError) {
+        console.error('备用扫描方法也失败:', fallbackError);
+        alert('无法注入扫描脚本，请确保页面已完全加载。');
+      }
+    }
+    
+  } catch (error) {
+    console.error('扫描二维码时出错:', error);
+    alert('扫描二维码时出错: ' + error.message);
+  }
+});
+
+// 监听来自background script的消息
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+  console.log('Popup收到消息:', request);
+  
+  if (request.action === 'qrDataUpdated') {
+    // 当background script通知有新的二维码数据时
+    console.log('收到二维码数据更新通知:', request.data);
+    fillFormWithQRData(request.data);
+    sendResponse({success: true});
+  }
+  
+  if (request.action === 'accountsUpdated') {
+    // 当账户列表更新时，刷新显示
+    console.log('收到账户更新通知，刷新账户列表');
+    displayAccounts();
+    sendResponse({success: true});
+  }
+  
+  return true; // 保持消息通道开放
+});
+
+// 备用扫描函数 - 直接在页面中执行
+function scanQRCodeDirectly() {
+  console.log('使用备用扫描方法...');
+  
+  // 查找页面上的所有图片
+  const images = document.querySelectorAll('img');
+  console.log('找到', images.length, '个图片元素');
+  
+  // 创建一个简单的通知
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 20px;
+    background-color: #4CAF50;
+    color: white;
+    border-radius: 4px;
+    z-index: 100000;
+    font-family: Arial, sans-serif;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  `;
+  notification.textContent = '正在扫描页面中的二维码...';
+  document.body.appendChild(notification);
+  
+  // 扫描图片中的二维码
+  let foundQR = false;
+  let processedCount = 0;
+  
+  function processImage(img) {
+    return new Promise((resolve) => {
+      if (!img.complete || img.naturalWidth === 0) {
+        resolve(null);
+        return;
+      }
+      
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      canvas.width = Math.min(img.naturalWidth, 800);
+      canvas.height = Math.min(img.naturalHeight, 600);
+      
+      const scale = Math.min(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
+      const x = (canvas.width - img.naturalWidth * scale) / 2;
+      const y = (canvas.height - img.naturalHeight * scale) / 2;
+      
+      ctx.drawImage(img, x, y, img.naturalWidth * scale, img.naturalHeight * scale);
+      
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      
+      // 简单的二维码检测（这里需要jsQR库）
+      if (typeof jsQR !== 'undefined') {
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        if (code) {
+          console.log('检测到二维码:', code.data);
+          foundQR = true;
+          
+          // 显示结果
+          notification.style.backgroundColor = '#2196F3';
+          notification.textContent = '检测到二维码！请查看扩展程序。';
+          
+          // 发送消息到扩展程序
+          chrome.runtime.sendMessage({
+            action: 'qrCodeDetected',
+            rawData: code.data
+          });
+          
+          resolve(code.data);
+        } else {
+          resolve(null);
+        }
+      } else {
+        resolve(null);
+      }
+    });
+  }
+  
+  // 处理所有图片
+  Promise.all(Array.from(images).map(processImage)).then(() => {
+    setTimeout(() => {
+      if (!foundQR) {
+        notification.style.backgroundColor = '#f44336';
+        notification.textContent = '未找到二维码';
+      }
+      
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 3000);
+    }, 1000);
+  });
+}
+
+// 导入二维码按钮
+document.getElementById('import-btn').addEventListener('click', function() {
+  console.log('=== 导入二维码按钮点击 ===');
+  document.getElementById('qr-file-input').click();
+});
+
+// 文件输入处理
+document.getElementById('qr-file-input').addEventListener('change', function(event) {
+  console.log('=== 文件选择事件 ===');
+  const file = event.target.files[0];
+  
+  if (!file) {
+    console.log('未选择文件');
+    return;
+  }
+  
+  console.log('选择的文件:', file.name, file.type, file.size);
+  
+  // 检查文件类型
+  if (!file.type.startsWith('image/')) {
+    alert('请选择图片文件！');
+    return;
+  }
+  
+  // 检查文件大小（限制为5MB）
+  if (file.size > 5 * 1024 * 1024) {
+    alert('图片文件太大，请选择小于5MB的文件！');
+    return;
+  }
+  
+  // 读取文件并扫描二维码
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    console.log('文件读取完成，开始扫描二维码');
+    scanQRFromImage(e.target.result);
+  };
+  
+  reader.onerror = function() {
+    console.error('文件读取失败');
+    alert('文件读取失败，请重试！');
+  };
+  
+  reader.readAsDataURL(file);
+});
+
+// 从图片扫描二维码
+function scanQRFromImage(imageDataUrl) {
+  console.log('=== 开始从图片扫描二维码 ===');
+  
+  try {
+    // 创建图片元素
+    const img = new Image();
+    img.onload = function() {
+      console.log('图片加载完成，尺寸:', img.width, 'x', img.height);
+      
+      // 创建canvas
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      // 设置canvas尺寸
+      canvas.width = img.width;
+      canvas.height = img.height;
+      
+      // 绘制图片到canvas
+      ctx.drawImage(img, 0, 0);
+      
+      // 获取图像数据
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      console.log('图像数据获取完成，像素数:', imageData.data.length);
+      
+      // 动态加载jsQR库
+      loadJSQR().then(() => {
+        console.log('jsQR库加载完成，开始扫描');
+        
+        // 使用jsQR扫描二维码
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        
+        if (code) {
+          console.log('✅ 扫描到二维码:', code.data);
+          processImportedQRCode(code.data);
+        } else {
+          console.log('❌ 未扫描到二维码');
+          alert('未在图片中检测到二维码，请确保图片包含清晰的二维码！');
+        }
+      }).catch(error => {
+        console.error('jsQR库加载失败:', error);
+        alert('二维码扫描库加载失败: ' + error.message);
+      });
+    };
+    
+    img.onerror = function() {
+      console.error('图片加载失败');
+      alert('图片加载失败，请检查文件格式！');
+    };
+    
+    img.src = imageDataUrl;
+    
+  } catch (error) {
+    console.error('扫描图片二维码时出错:', error);
+    alert('扫描图片二维码时出错: ' + error.message);
+  }
+}
+
+// 处理导入的二维码数据
+function processImportedQRCode(qrData) {
+  console.log('=== 处理导入的二维码数据 ===');
+  console.log('二维码数据:', qrData);
+  
+  // 检查是否为Google Authenticator迁移格式
+  if (qrData.startsWith('otpauth-migration://offline')) {
+    console.log('检测到Google Authenticator迁移格式');
+    
+    try {
+      // 解析迁移数据
+      const migrationData = parseMigrationData(qrData);
+      if (migrationData && migrationData.length > 0) {
+        console.log('解析到迁移数据:', migrationData);
+        
+        // 发送到background script
+        const messageData = {
+          action: 'qrCodeDetected',
+          secret: migrationData[0].secret,
+          issuer: migrationData[0].issuer,
+          label: migrationData[0].name,
+          migrationData: migrationData,
+          fullData: qrData
+        };
+        
+        chrome.runtime.sendMessage(messageData, function(response) {
+          console.log('导入二维码消息发送响应:', response);
+          if (chrome.runtime.lastError) {
+            console.error('发送导入二维码消息失败:', chrome.runtime.lastError);
+            alert('导入二维码失败: ' + chrome.runtime.lastError.message);
+          } else {
+            if (response.addedCount) {
+              alert(`✅ 成功导入 ${response.addedCount} 个账户！`);
+              // 刷新账户列表
+              displayAccounts();
+            } else {
+              alert('✅ 二维码导入成功！');
+            }
+          }
+        });
+      } else {
+        console.error('迁移数据解析失败');
+        alert('二维码数据解析失败，请检查二维码格式！');
+      }
+    } catch (error) {
+      console.error('解析迁移数据失败:', error);
+      alert('二维码数据解析失败: ' + error.message);
+    }
+  } else if (qrData.startsWith('otpauth://')) {
+    console.log('检测到单个账户otpauth格式');
+    
+    // 解析单个账户
+    const url = new URL(qrData);
+    const secret = url.searchParams.get('secret');
+    const issuer = url.searchParams.get('issuer');
+    const label = url.pathname.split('/').pop();
+    
+    if (secret) {
+      const messageData = {
+        action: 'qrCodeDetected',
+        secret: secret,
+        issuer: issuer || 'Unknown',
+        label: label || 'Imported Account',
+        fullData: qrData
+      };
+      
+      chrome.runtime.sendMessage(messageData, function(response) {
+        console.log('导入单个账户响应:', response);
+        if (chrome.runtime.lastError) {
+          console.error('发送单个账户消息失败:', chrome.runtime.lastError);
+          alert('导入账户失败: ' + chrome.runtime.lastError.message);
+        } else {
+          alert('✅ 账户导入成功！');
+          // 刷新账户列表
+          displayAccounts();
+        }
+      });
+    } else {
+      alert('二维码格式不正确，无法提取密钥！');
+    }
+  } else {
+    console.log('未知的二维码格式:', qrData);
+    alert('不支持的二维码格式，请使用Google Authenticator生成的二维码！');
+  }
+}
+
+// 动态加载jsQR库
+function loadJSQR() {
+  return new Promise((resolve, reject) => {
+    if (typeof jsQR !== 'undefined') {
+      resolve();
+      return;
+    }
+    
+    const script = document.createElement('script');
+    script.src = 'js/jsQR.js';
+    script.onload = () => {
+      console.log('jsQR库动态加载完成');
+      resolve();
+    };
+    script.onerror = () => {
+      console.error('jsQR库动态加载失败');
+      reject(new Error('jsQR库加载失败'));
+    };
+    document.head.appendChild(script);
+  });
+}

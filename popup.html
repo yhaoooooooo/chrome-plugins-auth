@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Google Authenticator</title>
+  <style>
+    body {
+      width: 350px;
+      padding: 10px;
+      font-family: Arial, sans-serif;
+    }
+    
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    
+    label {
+      font-weight: bold;
+    }
+    
+    input, button {
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    
+    button {
+      background-color: #4CAF50;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    
+    button:hover {
+      background-color: #45a049;
+    }
+    
+    .scan-btn {
+      background-color: #2196F3;
+    }
+    
+    .scan-btn:hover {
+      background-color: #1976D2;
+    }
+    
+    .token-display {
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+      padding: 10px;
+      background-color: #f0f0f0;
+      border-radius: 4px;
+      margin-top: 10px;
+    }
+    
+    .qr-code {
+      display: flex;
+      justify-content: center;
+      margin-top: 10px;
+    }
+    
+    .qr-code img {
+      max-width: 100%;
+      height: auto;
+    }
+    
+    .secret-key {
+      word-break: break-all;
+      font-family: monospace;
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+    
+    .account-item {
+      margin-bottom: 12px;
+      border: 1px solid #e8e8e8;
+      border-radius: 12px;
+      padding: 16px;
+      background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    
+    .account-item:hover {
+      background: linear-gradient(135deg, #f0f2f5 0%, #f8f9fa 100%);
+      border-color: #d0d7de;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      transform: translateY(-1px);
+    }
+    
+    .account-display {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      min-height: 60px;
+    }
+    
+    .account-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      min-width: 0;
+      padding-right: 8px;
+    }
+    
+    .account-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    
+    .account-name-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    
+    .account-name {
+      font-size: 11px;
+      color: #666;
+      text-align: center;
+      max-width: 180px;
+      max-height: 32px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      line-height: 1.3;
+      word-break: break-all;
+    }
+    
+    .usage-count {
+      background-color: #4CAF50;
+      color: white;
+      font-size: 9px;
+      font-weight: bold;
+      padding: 2px 6px;
+      border-radius: 10px;
+      min-width: 16px;
+      text-align: center;
+      line-height: 1.2;
+      flex-shrink: 0;
+    }
+    
+    .account-token {
+      font-size: 28px;
+      font-weight: bold;
+      font-family: 'Courier New', monospace;
+      color: #333;
+      letter-spacing: 2px;
+      text-align: center;
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    
+    .account-token:hover {
+      background-color: #e3f2fd;
+      color: #1976d2;
+    }
+    
+    .account-token:active {
+      background-color: #bbdefb;
+      transform: scale(0.98);
+    }
+    
+    .countdown-circle {
+      position: relative;
+      width: 40px;
+      height: 40px;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    
+    .countdown-circle:hover {
+      transform: scale(1.1);
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15));
+    }
+    
+    .circle-svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+    
+    .circle-bg {
+      fill: none;
+      stroke: #e8e8e8;
+      stroke-width: 3;
+    }
+    
+    .circle-progress {
+      fill: none;
+      stroke: #00C851;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-dasharray: 100;
+      stroke-dashoffset: 0;
+      transition: stroke-dashoffset 1s linear, stroke 0.3s ease;
+      filter: drop-shadow(0 0 3px rgba(0, 200, 81, 0.3));
+    }
+    
+    .circle-progress.warning {
+      stroke: #FF6B35;
+      filter: drop-shadow(0 0 4px rgba(255, 107, 53, 0.4));
+    }
+    
+    .circle-progress.critical {
+      stroke: #FF1744;
+      filter: drop-shadow(0 0 5px rgba(255, 23, 68, 0.5));
+      animation: pulse 1s infinite;
+    }
+    
+    .circle-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 12px;
+      font-weight: 900;
+      color: #2c3e50;
+      font-family: 'Courier New', monospace;
+      line-height: 1;
+      text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+    }
+    
+    .circle-text.warning {
+      color: #E65100;
+      text-shadow: 0 1px 2px rgba(255,255,255,0.9);
+    }
+    
+    .circle-text.critical {
+      color: #B71C1C;
+      text-shadow: 0 1px 2px rgba(255,255,255,0.9);
+    }
+    
+    @keyframes pulse {
+      0% { 
+        opacity: 1; 
+        transform: scale(1);
+        filter: drop-shadow(0 0 5px rgba(255, 23, 68, 0.5));
+      }
+      50% { 
+        opacity: 0.7; 
+        transform: scale(1.05);
+        filter: drop-shadow(0 0 8px rgba(255, 23, 68, 0.8));
+      }
+      100% { 
+        opacity: 1; 
+        transform: scale(1);
+        filter: drop-shadow(0 0 5px rgba(255, 23, 68, 0.5));
+      }
+    }
+    
+    .account-menu {
+      position: relative;
+    }
+    
+    .menu-btn {
+      background-color: transparent;
+      color: #999;
+      border: none;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .menu-btn:hover {
+      background-color: #e0e0e0;
+      color: #666;
+    }
+    
+    .menu-dropdown {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background-color: white;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      z-index: 1000;
+      min-width: 120px;
+      overflow: hidden;
+    }
+    
+    .menu-item {
+      display: block;
+      width: 100%;
+      padding: 8px 12px;
+      border: none;
+      background-color: transparent;
+      color: #333;
+      font-size: 12px;
+      text-align: left;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    
+    .menu-item:hover {
+      background-color: #f5f5f5;
+    }
+    
+    .menu-item.delete-btn {
+      color: #f44336;
+    }
+    
+    .menu-item.delete-btn:hover {
+      background-color: #ffebee;
+    }
+    
+    .accounts-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .accounts-header h3 {
+      margin: 0;
+      font-size: 16px;
+    }
+    
+    .filter-container {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    
+    #filter-input {
+      padding: 4px 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 12px;
+      width: 150px;
+      transition: border-color 0.2s ease;
+    }
+    
+    #filter-input:focus {
+      outline: none;
+      border-color: #4CAF50;
+      box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+    }
+    
+    #clear-filter {
+      background-color: #f5f5f5;
+      color: #666;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      width: 20px;
+      height: 20px;
+      font-size: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    
+    #clear-filter:hover {
+      background-color: #e0e0e0;
+      color: #333;
+    }
+    
+    .account-item.hidden {
+      display: none;
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .header h2 {
+      margin: 0;
+      font-size: 18px;
+      color: #333;
+    }
+    
+    .add-account-btn {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .add-account-btn:hover {
+      background-color: #45a049;
+      transform: translateY(-1px);
+    }
+    
+    .add-account-panel {
+      margin-top: 15px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      background-color: #fafafa;
+      animation: slideDown 0.3s ease;
+    }
+    
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background-color: #f0f0f0;
+      border-bottom: 1px solid #e0e0e0;
+      border-radius: 8px 8px 0 0;
+    }
+    
+    .panel-header h3 {
+      margin: 0;
+      font-size: 14px;
+      color: #333;
+    }
+    
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 16px;
+      color: #666;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+    
+    .close-btn:hover {
+      background-color: #e0e0e0;
+      color: #333;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    
+    .primary-btn {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      flex: 1;
+      transition: all 0.2s ease;
+    }
+    
+    .primary-btn:hover {
+      background-color: #45a049;
+    }
+    
+    .secondary-btn {
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .secondary-btn:hover {
+      background-color: #1976D2;
+    }
+    
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h2>Google Authenticator</h2>
+      <button id="add-account-btn" class="add-account-btn">+ 添加账户</button>
+    </div>
+    
+    <div id="accounts-list">
+      <div class="accounts-header">
+        <h3>已保存账户</h3>
+        <div class="filter-container">
+          <input type="text" id="filter-input" placeholder="筛选域名或账户名..." />
+          <button id="clear-filter" title="清除筛选">✕</button>
+        </div>
+      </div>
+      <div id="accounts-container"></div>
+      <div id="no-results" style="display: none; text-align: center; color: #666; padding: 20px;">
+        没有找到匹配的账户
+      </div>
+    </div>
+    
+    <!-- 添加账户的折叠面板 -->
+    <div id="add-account-panel" class="add-account-panel" style="display: none;">
+      <div class="panel-header">
+        <h3>添加新账户</h3>
+        <button id="close-panel" class="close-btn">✕</button>
+      </div>
+      
+      <div class="input-group">
+        <label for="secret-key">输入密钥 (Secret Key):</label>
+        <input type="text" id="secret-key" placeholder="输入TOTP密钥">
+      </div>
+      
+      <div class="input-group">
+        <label for="account-name">账户名称:</label>
+        <input type="text" id="account-name" placeholder="例如: Gmail, GitHub等">
+      </div>
+      
+      <div class="button-group">
+        <button id="add-btn" class="primary-btn">添加账户</button>
+        <button id="scan-btn" class="secondary-btn">扫描二维码</button>
+        <button id="import-btn" class="secondary-btn">导入图片</button>
+        <input type="file" id="qr-file-input" accept="image/*" style="display: none;">
+      </div>
+      
+      <div id="token-container" style="display: none;">
+        <div class="token-display" id="current-token">--:--:--</div>
+        <div class="secret-key">密钥: <span id="display-secret"></span></div>
+        <div class="qr-code" id="qr-display"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/jsQR.js"></script>
+  <script src="js/qrcode.min.js"></script>
+  <script src="js/authenticator.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
