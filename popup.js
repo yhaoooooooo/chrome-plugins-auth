@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // 定期更新所有令牌
   setInterval(async function() {
-    displayAccounts();
+    updateTokensOnly();
   }, 10000); // 每10秒更新一次账户列表中的令牌
   
   // 添加账户按钮事件监听器
@@ -409,12 +409,50 @@ function parseAccountInfo(accountName, storedIssuer = null) {
   };
 }
 
+// 只更新令牌，不重新渲染整个列表
+async function updateTokensOnly() {
+  try {
+    const accounts = await loadAccounts();
+    const container = document.getElementById('accounts-container');
+    
+    // 检查是否有账户元素存在，如果没有则进行完整渲染
+    const existingAccounts = container.querySelectorAll('.account-item');
+    if (existingAccounts.length === 0) {
+      console.log('没有找到现有账户元素，进行完整渲染');
+      await displayAccounts();
+      return;
+    }
+    
+    // 只更新现有账户的令牌
+    for (const [name, secret] of Object.entries(accounts)) {
+      const tokenElement = document.getElementById(`token-${name}`);
+      if (tokenElement) {
+        try {
+          const token = await generateTOTP(secret);
+          tokenElement.textContent = token;
+        } catch (error) {
+          console.error(`更新账户 ${name} 的令牌时出错:`, error);
+          tokenElement.textContent = '错误';
+        }
+      }
+    }
+  } catch (error) {
+    console.error('更新令牌时出错:', error);
+    // 如果出错，回退到完整渲染
+    await displayAccounts();
+  }
+}
+
 // 显示账户列表
 async function displayAccounts() {
   const accounts = await loadAccounts();
   const usageStats = await loadUsageStats();
   const accountInfo = await loadAccountInfo();
   const container = document.getElementById('accounts-container');
+  
+  // 保存当前滚动位置
+  const scrollTop = container.scrollTop;
+  const scrollLeft = container.scrollLeft;
   
   container.innerHTML = '';
   
@@ -546,6 +584,10 @@ async function displayAccounts() {
   document.addEventListener('click', function() {
     closeAllMenus();
   });
+  
+  // 恢复滚动位置
+  container.scrollTop = scrollTop;
+  container.scrollLeft = scrollLeft;
 }
 
 // 切换菜单显示/隐藏
@@ -953,6 +995,7 @@ function deleteAccount(accountName) {
     delete accounts[accountName];
     
     chrome.storage.local.set({ accounts: accounts }, function() {
+      // 删除账户时需要完整重新渲染，因为列表结构发生了变化
       displayAccounts();
     });
   });
@@ -1038,7 +1081,7 @@ document.getElementById('add-btn').addEventListener('click', async function() {
     if (addAccountPanel) addAccountPanel.style.display = 'none';
     if (addAccountBtn) addAccountBtn.style.display = 'block';
     
-    // 更新账户列表
+    // 更新账户列表（添加账户后需要完整重新渲染）
     displayAccounts();
     
     // 设置定时更新令牌 (每30秒更新一次)
@@ -1168,6 +1211,13 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     // 当账户列表更新时，刷新显示
     console.log('收到账户更新通知，刷新账户列表');
     displayAccounts();
+    sendResponse({success: true});
+  }
+  
+  if (request.action === 'tokensUpdated') {
+    // 当只需要更新令牌时
+    console.log('收到令牌更新通知');
+    updateTokensOnly();
     sendResponse({success: true});
   }
   
