@@ -1,6 +1,6 @@
 # Google身份验证器Chrome扩展
 
-[![Version](https://img.shields.io/badge/version-1.2.2-blue.svg)](https://github.com/your-repo/google-authenticator-extension)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/your-repo/google-authenticator-extension)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome-Extension-green.svg)](https://chrome.google.com/webstore)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -15,6 +15,7 @@
 - 📊 **智能管理** - 使用统计、自动筛选和排序功能
 - 📋 **一键复制** - 点击验证码直接复制到剪贴板
 - 🔍 **智能搜索** - 按域名或账户名快速筛选
+- 🌐 **域名自动筛选** - 根据当前访问的域名自动筛选相关MFA账户
 - 📱 **响应式设计** - 适配不同屏幕尺寸
 - 💾 **数据备份** - 支持JSON格式导入导出
 
@@ -45,7 +46,8 @@ scripts/package.bat
 2. **查看验证码**：扩展自动显示6位验证码
 3. **复制验证码**：点击验证码直接复制
 4. **筛选账户**：使用搜索框快速查找
-5. **管理账户**：点击"⋯"菜单进行管理
+5. **自动筛选**：访问网站时自动显示相关MFA账户
+6. **管理账户**：点击"⋯"菜单进行管理
 
 ## 📖 详细文档
 
@@ -110,6 +112,7 @@ chrome-tools/
 ### 账户管理
 - 智能排序（按使用频率）
 - 快速搜索和筛选
+- 域名自动筛选（根据当前网站）
 - 一键复制验证码
 - 圆形倒计时显示
 
@@ -149,6 +152,13 @@ scripts/package.bat         # Windows
 ```
 
 ## 📝 更新日志
+
+### v1.3.0 - 域名自动筛选版本（2024-01-15）
+- ✅ 新增域名自动筛选功能，根据当前访问的域名自动筛选相关MFA账户
+- ✅ 智能匹配算法，支持完全匹配、包含匹配、关键词匹配等多种模式
+- ✅ 增强的筛选体验，高匹配度账户高亮显示
+- ✅ 自动筛选指示器，显示匹配数量和筛选状态
+- ✅ 搜不到匹配时自动显示所有账户
 
 ### v1.2.2 - 扫描功能完善版本（2024-01-15）
 - ✅ 完善页面二维码扫描功能，支持多种载体格式

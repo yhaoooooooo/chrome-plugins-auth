@@ -35,6 +35,11 @@ document.addEventListener('DOMContentLoaded', function() {
   // 根据当前域名自动筛选
   autoFilterByCurrentDomain();
   
+  // 添加测试按钮（仅在开发模式下显示）
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    addTestButton();
+  }
+  
   // 定期更新所有令牌
   setInterval(async function() {
     updateTokensOnly();
@@ -562,7 +567,8 @@ async function displayAccounts() {
   
   if (filterInput) {
     filterInput.addEventListener('input', function() {
-      filterAccounts(this.value);
+      // 使用增强的筛选功能
+      enhancedFilterAccounts(this.value);
     });
   }
   
@@ -570,7 +576,7 @@ async function displayAccounts() {
     clearFilterBtn.addEventListener('click', function() {
       filterInput.value = '';
       filterInput.placeholder = '筛选域名或账户名...';
-      filterAccounts('');
+      enhancedFilterAccounts('');
       
       // 移除自动筛选指示器
       const indicator = document.getElementById('auto-filter-indicator');
@@ -731,6 +737,110 @@ function filterAccounts(filterText) {
   }
 }
 
+// 增强的筛选功能
+async function enhancedFilterAccounts(filterText) {
+  const accountItems = document.querySelectorAll('.account-item');
+  const noResultsDiv = document.getElementById('no-results');
+  let visibleCount = 0;
+  
+  if (!filterText || filterText.trim() === '') {
+    // 显示所有账户
+    accountItems.forEach(item => {
+      item.classList.remove('hidden');
+      visibleCount++;
+    });
+  } else {
+    // 使用增强的匹配算法
+    let matches = [];
+    
+    // 如果filterText看起来像URL，使用findMatchingAccounts
+    if (filterText.includes('://') || filterText.includes('.')) {
+      try {
+        // 构造一个完整的URL用于匹配
+        const testUrl = filterText.startsWith('http') ? filterText : `https://${filterText}`;
+        matches = await findMatchingAccounts(testUrl);
+      } catch (error) {
+        console.error('URL匹配失败，使用文本匹配:', error);
+        matches = [];
+      }
+    }
+    
+    // 如果没有URL匹配结果，使用文本匹配
+    if (matches.length === 0) {
+      matches = await findMatchingAccountsByText(filterText);
+    }
+    
+    const matchNames = new Set(matches.map(match => match.name));
+    
+    console.log('筛选文本:', filterText);
+    console.log('匹配结果:', matches);
+    console.log('匹配的账户名:', Array.from(matchNames));
+    
+    accountItems.forEach(item => {
+      const accountName = item.querySelector('.account-name').textContent;
+      const accountKey = item.querySelector('.account-token').getAttribute('data-name');
+      
+      // 检查是否在匹配列表中
+      const isMatch = matchNames.has(accountKey) || 
+                     accountName.toLowerCase().includes(filterText.toLowerCase());
+      
+      if (isMatch) {
+        item.classList.remove('hidden');
+        visibleCount++;
+        
+        // 如果是高匹配度，添加高亮效果
+        const match = matches.find(m => m.name === accountKey);
+        if (match && match.score >= 60) {
+          item.style.borderLeft = '3px solid #4CAF50';
+          item.style.backgroundColor = 'rgba(76, 175, 80, 0.05)';
+        } else {
+          item.style.borderLeft = '';
+          item.style.backgroundColor = '';
+        }
+      } else {
+        item.classList.add('hidden');
+        item.style.borderLeft = '';
+        item.style.backgroundColor = '';
+      }
+    });
+  }
+  
+  // 显示或隐藏"无结果"提示
+  if (visibleCount === 0 && filterText.trim() !== '') {
+    noResultsDiv.style.display = 'block';
+  } else {
+    noResultsDiv.style.display = 'none';
+  }
+  
+  console.log(`筛选完成: 显示 ${visibleCount} 个账户`);
+  
+  // 强制刷新显示
+  if (visibleCount > 0) {
+    // 确保所有匹配的账户都可见
+    accountItems.forEach(item => {
+      const accountKey = item.querySelector('.account-token').getAttribute('data-name');
+      const accountName = item.querySelector('.account-name').textContent;
+      
+      // 检查是否应该显示
+      const shouldShow = matchNames.has(accountKey) || 
+                        accountName.toLowerCase().includes(filterText.toLowerCase());
+      
+      if (shouldShow) {
+        item.style.display = 'block';
+        item.classList.remove('hidden');
+      } else {
+        item.style.display = 'none';
+        item.classList.add('hidden');
+      }
+    });
+  }
+  
+  // 调试信息
+  setTimeout(() => {
+    debugAccountDisplay();
+  }, 200);
+}
+
 // 从账户名中提取域名
 function extractDomain(accountName) {
   // 尝试从账户名中提取域名
@@ -767,9 +877,12 @@ function extractDomain(accountName) {
 // 根据当前域名自动筛选
 async function autoFilterByCurrentDomain() {
   try {
+    console.log('=== 开始自动域名筛选 ===');
+    
     // 获取当前活动标签页
     const tabs = await chrome.tabs.query({active: true, currentWindow: true});
     if (!tabs[0] || !tabs[0].url) {
+      console.log('无法获取当前标签页或URL');
       return;
     }
     
@@ -779,27 +892,46 @@ async function autoFilterByCurrentDomain() {
     // 提取域名
     const domain = extractDomainFromUrl(currentUrl);
     if (!domain) {
+      console.log('无法提取域名');
       return;
     }
     
     console.log('提取的域名:', domain);
     
-    // 检查是否有匹配的账户
-    const hasMatchingAccounts = await checkForMatchingAccounts(domain);
-    if (hasMatchingAccounts) {
+    // 使用增强的匹配算法查找相关账户
+    const matches = await findMatchingAccounts(currentUrl);
+    console.log('找到匹配的账户数量:', matches.length);
+    console.log('匹配详情:', matches);
+    
+    if (matches.length > 0) {
+      // 显示匹配结果
+      displayMatchingResults(domain, matches);
+      
       // 自动填充筛选框并执行筛选
       const filterInput = document.getElementById('filter-input');
       if (filterInput) {
         filterInput.value = domain;
-        filterInput.placeholder = `已自动筛选: ${domain}`;
-        filterAccounts(domain);
+        filterInput.placeholder = `已自动筛选: ${domain} (${matches.length}个匹配)`;
+        
+        // 等待一下确保DOM更新完成
+        setTimeout(async () => {
+          await enhancedFilterAccounts(domain);
+        }, 100);
         
         // 添加自动筛选指示器
-        addAutoFilterIndicator(domain);
+        addAutoFilterIndicator(domain, matches.length);
       }
+      
+      console.log('✅ 自动筛选完成，找到', matches.length, '个匹配账户');
+    } else {
+      // 没有找到匹配的账户，显示所有账户
+      console.log('❌ 没有找到匹配的账户，显示所有账户');
+      showAllAccountsIndicator();
     }
+    
+    console.log('=== 自动域名筛选完成 ===');
   } catch (error) {
-    console.error('自动筛选失败:', error);
+    console.error('❌ 自动筛选失败:', error);
   }
 }
 
@@ -815,6 +947,41 @@ function extractDomainFromUrl(url) {
     }
     
     return hostname;
+  } catch (error) {
+    console.error('解析URL失败:', error);
+    return null;
+  }
+}
+
+// 增强的域名提取函数，支持更多格式
+function extractEnhancedDomain(url) {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname;
+    
+    // 移除www前缀
+    let domain = hostname;
+    if (domain.startsWith('www.')) {
+      domain = domain.substring(4);
+    }
+    
+    // 提取主域名（去掉子域名）
+    const parts = domain.split('.');
+    if (parts.length >= 2) {
+      // 保留最后两个部分作为主域名
+      const mainDomain = parts.slice(-2).join('.');
+      return {
+        full: domain,
+        main: mainDomain,
+        parts: parts
+      };
+    }
+    
+    return {
+      full: domain,
+      main: domain,
+      parts: parts
+    };
   } catch (error) {
     console.error('解析URL失败:', error);
     return null;
@@ -840,8 +1007,250 @@ async function checkForMatchingAccounts(domain) {
   }
 }
 
+// 增强的账户匹配算法
+async function findMatchingAccounts(domain) {
+  try {
+    const accounts = await loadAccounts();
+    const domainInfo = extractEnhancedDomain(domain);
+    
+    if (!domainInfo) {
+      return [];
+    }
+    
+    const matches = [];
+    const domainLower = domainInfo.full.toLowerCase();
+    const mainDomainLower = domainInfo.main.toLowerCase();
+    
+    for (const [name, secret] of Object.entries(accounts)) {
+      const accountDomain = extractDomain(name);
+      const accountDomainLower = accountDomain.toLowerCase();
+      
+      // 计算匹配分数
+      const score = calculateMatchScore(domainInfo, accountDomainLower, name);
+      
+      if (score > 0) {
+        matches.push({
+          name: name,
+          secret: secret,
+          domain: accountDomain,
+          score: score,
+          matchType: getMatchType(domainInfo, accountDomainLower, score)
+        });
+      }
+    }
+    
+    // 按分数排序
+    return matches.sort((a, b) => b.score - a.score);
+  } catch (error) {
+    console.error('查找匹配账户失败:', error);
+    return [];
+  }
+}
+
+// 计算匹配分数
+function calculateMatchScore(domainInfo, accountDomain, accountName) {
+  let score = 0;
+  const domainLower = domainInfo.full.toLowerCase();
+  const mainDomainLower = domainInfo.main.toLowerCase();
+  const accountLower = accountName.toLowerCase();
+  
+  // 完全匹配
+  if (accountDomain === domainLower) {
+    score += 100;
+  }
+  // 主域名匹配
+  else if (accountDomain === mainDomainLower) {
+    score += 80;
+  }
+  // 包含匹配
+  else if (accountDomain.includes(domainLower) || domainLower.includes(accountDomain)) {
+    score += 60;
+  }
+  // 部分匹配
+  else if (accountDomain.includes(mainDomainLower) || mainDomainLower.includes(accountDomain)) {
+    score += 40;
+  }
+  
+  // 账户名中包含域名关键词
+  const domainKeywords = extractKeywords(domainInfo.full);
+  for (const keyword of domainKeywords) {
+    if (accountLower.includes(keyword.toLowerCase())) {
+      score += 20;
+    }
+  }
+  
+  // 检查常见的服务名映射
+  const serviceMapping = getServiceMapping(domainInfo.full);
+  for (const service of serviceMapping) {
+    if (accountLower.includes(service.toLowerCase())) {
+      score += 30;
+    }
+  }
+  
+  return score;
+}
+
+// 提取域名关键词
+function extractKeywords(domain) {
+  const keywords = [];
+  const parts = domain.split('.');
+  
+  // 添加域名各部分
+  parts.forEach(part => {
+    if (part.length > 2) {
+      keywords.push(part);
+    }
+  });
+  
+  // 添加常见服务名
+  const commonServices = ['github', 'gitlab', 'bitbucket', 'jira', 'confluence', 'jenkins', 'sonar', 'jump', 'platform'];
+  commonServices.forEach(service => {
+    if (domain.includes(service)) {
+      keywords.push(service);
+    }
+  });
+  
+  return keywords;
+}
+
+// 获取服务映射
+function getServiceMapping(domain) {
+  const mappings = {
+    'github.com': ['github', 'git'],
+    'gitlab.com': ['gitlab', 'git'],
+    'bitbucket.org': ['bitbucket', 'git'],
+    'atlassian.net': ['jira', 'confluence', 'atlassian'],
+    'sonarqube.org': ['sonar', 'sonarqube'],
+    'jumpserver.org': ['jump', 'jumpserver'],
+    'jfrog.io': ['jfrog', 'artifactory'],
+    'docker.io': ['docker', 'registry'],
+    'kubernetes.io': ['k8s', 'kubernetes'],
+    'jenkins.io': ['jenkins', 'ci']
+  };
+  
+  const domainLower = domain.toLowerCase();
+  for (const [key, services] of Object.entries(mappings)) {
+    if (domainLower.includes(key) || key.includes(domainLower)) {
+      return services;
+    }
+  }
+  
+  return [];
+}
+
+// 获取匹配类型
+function getMatchType(domainInfo, accountDomain, score) {
+  if (score >= 100) return 'exact';
+  if (score >= 80) return 'main-domain';
+  if (score >= 60) return 'contains';
+  if (score >= 40) return 'partial';
+  if (score >= 20) return 'keyword';
+  return 'fuzzy';
+}
+
+// 基于文本的账户匹配
+async function findMatchingAccountsByText(filterText) {
+  try {
+    const accounts = await loadAccounts();
+    const filterLower = filterText.toLowerCase().trim();
+    const matches = [];
+    
+    for (const [name, secret] of Object.entries(accounts)) {
+      const accountDomain = extractDomain(name);
+      const accountLower = name.toLowerCase();
+      const domainLower = accountDomain.toLowerCase();
+      
+      let score = 0;
+      
+      // 完全匹配
+      if (accountLower === filterLower) {
+        score += 100;
+      }
+      // 域名完全匹配
+      else if (domainLower === filterLower) {
+        score += 90;
+      }
+      // 包含匹配
+      else if (accountLower.includes(filterLower) || filterLower.includes(accountLower)) {
+        score += 70;
+      }
+      // 域名包含匹配
+      else if (domainLower.includes(filterLower) || filterLower.includes(domainLower)) {
+        score += 60;
+      }
+      // 关键词匹配
+      else if (accountLower.includes(filterLower) || domainLower.includes(filterLower)) {
+        score += 40;
+      }
+      
+      if (score > 0) {
+        matches.push({
+          name: name,
+          secret: secret,
+          domain: accountDomain,
+          score: score,
+          matchType: getMatchTypeByScore(score)
+        });
+      }
+    }
+    
+    // 按分数排序
+    return matches.sort((a, b) => b.score - a.score);
+  } catch (error) {
+    console.error('文本匹配失败:', error);
+    return [];
+  }
+}
+
+// 根据分数获取匹配类型
+function getMatchTypeByScore(score) {
+  if (score >= 100) return 'exact';
+  if (score >= 90) return 'domain-exact';
+  if (score >= 70) return 'contains';
+  if (score >= 60) return 'domain-contains';
+  if (score >= 40) return 'keyword';
+  return 'fuzzy';
+}
+
+// 显示匹配结果
+function displayMatchingResults(domain, matches) {
+  console.log(`为域名 ${domain} 找到 ${matches.length} 个匹配账户:`, matches);
+  
+  // 在控制台显示详细信息
+  matches.forEach((match, index) => {
+    console.log(`${index + 1}. ${match.name} (${match.matchType}, 分数: ${match.score})`);
+  });
+}
+
+// 调试函数：检查账户显示状态
+function debugAccountDisplay() {
+  const accountItems = document.querySelectorAll('.account-item');
+  console.log('=== 账户显示状态调试 ===');
+  console.log(`总账户数量: ${accountItems.length}`);
+  
+  let visibleCount = 0;
+  let hiddenCount = 0;
+  
+  accountItems.forEach((item, index) => {
+    const isHidden = item.classList.contains('hidden') || item.style.display === 'none';
+    const accountName = item.querySelector('.account-name')?.textContent || 'Unknown';
+    const accountKey = item.querySelector('.account-token')?.getAttribute('data-name') || 'Unknown';
+    
+    if (isHidden) {
+      hiddenCount++;
+      console.log(`${index + 1}. [隐藏] ${accountName} (${accountKey})`);
+    } else {
+      visibleCount++;
+      console.log(`${index + 1}. [显示] ${accountName} (${accountKey})`);
+    }
+  });
+  
+  console.log(`可见账户: ${visibleCount}, 隐藏账户: ${hiddenCount}`);
+  console.log('=== 调试完成 ===');
+}
+
 // 添加自动筛选指示器
-function addAutoFilterIndicator(domain) {
+function addAutoFilterIndicator(domain, matchCount = 0) {
   const filterContainer = document.querySelector('.filter-container');
   if (!filterContainer) return;
   
@@ -861,10 +1270,71 @@ function addAutoFilterIndicator(domain) {
     display: flex;
     align-items: center;
     gap: 2px;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+    background-color: rgba(76, 175, 80, 0.1);
+    transition: all 0.2s ease;
   `;
+  
+  const matchText = matchCount > 0 ? ` (${matchCount}个匹配)` : '';
   indicator.innerHTML = `
     <span>🔍</span>
-    <span>自动筛选: ${domain}</span>
+    <span>自动筛选: ${domain}${matchText}</span>
+  `;
+  
+  // 添加点击事件，显示匹配详情
+  indicator.addEventListener('click', function() {
+    showMatchDetails(domain, matchCount);
+  });
+  
+  // 添加悬停效果
+  indicator.addEventListener('mouseenter', function() {
+    this.style.backgroundColor = 'rgba(76, 175, 80, 0.2)';
+  });
+  
+  indicator.addEventListener('mouseleave', function() {
+    this.style.backgroundColor = 'rgba(76, 175, 80, 0.1)';
+  });
+  
+  filterContainer.appendChild(indicator);
+  
+  // 10秒后自动移除指示器
+  setTimeout(() => {
+    if (indicator.parentNode) {
+      indicator.remove();
+    }
+  }, 10000);
+}
+
+// 显示所有账户指示器
+function showAllAccountsIndicator() {
+  const filterContainer = document.querySelector('.filter-container');
+  if (!filterContainer) return;
+  
+  // 移除已存在的指示器
+  const existingIndicator = document.getElementById('auto-filter-indicator');
+  if (existingIndicator) {
+    existingIndicator.remove();
+  }
+  
+  // 创建指示器
+  const indicator = document.createElement('div');
+  indicator.id = 'auto-filter-indicator';
+  indicator.style.cssText = `
+    font-size: 10px;
+    color: #FF9800;
+    margin-left: 5px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    background-color: rgba(255, 152, 0, 0.1);
+  `;
+  indicator.innerHTML = `
+    <span>📋</span>
+    <span>未找到匹配，显示所有账户</span>
   `;
   
   filterContainer.appendChild(indicator);
@@ -875,6 +1345,115 @@ function addAutoFilterIndicator(domain) {
       indicator.remove();
     }
   }, 5000);
+}
+
+// 显示匹配详情
+function showMatchDetails(domain, matchCount) {
+  // 创建详情弹窗
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  `;
+  
+  const content = document.createElement('div');
+  content.style.cssText = `
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    max-width: 400px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  `;
+  
+  content.innerHTML = `
+    <h3 style="margin: 0 0 15px 0; color: #333;">匹配结果</h3>
+    <p style="margin: 0 0 15px 0; color: #666; font-size: 14px;">
+      为域名 <strong>${domain}</strong> 找到 <strong>${matchCount}</strong> 个相关账户
+    </p>
+    <div id="match-details-list" style="margin-bottom: 15px;"></div>
+    <button id="close-match-details" style="
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    ">关闭</button>
+  `;
+  
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+  
+  // 添加关闭事件
+  document.getElementById('close-match-details').addEventListener('click', function() {
+    document.body.removeChild(modal);
+  });
+  
+  // 点击背景关闭
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      document.body.removeChild(modal);
+    }
+  });
+}
+
+// 添加测试按钮
+function addTestButton() {
+  const header = document.querySelector('.header');
+  if (!header) return;
+  
+  const testBtn = document.createElement('button');
+  testBtn.textContent = '🧪 测试筛选';
+  testBtn.style.cssText = `
+    background-color: #FF9800;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-left: 8px;
+  `;
+  
+  testBtn.addEventListener('click', async function() {
+    const testUrls = [
+      'https://github.com/user/repo',
+      'https://gitlab.com/user/repo',
+      'https://jira.company.com',
+      'https://sonar.company.com',
+      'https://jumpserver.company.com',
+      'https://example.com'
+    ];
+    
+    const randomUrl = testUrls[Math.floor(Math.random() * testUrls.length)];
+    console.log('🧪 测试URL:', randomUrl);
+    
+    // 模拟当前URL
+    const originalQuery = chrome.tabs.query;
+    chrome.tabs.query = function(queryInfo, callback) {
+      callback([{ url: randomUrl }]);
+    };
+    
+    try {
+      await autoFilterByCurrentDomain();
+    } finally {
+      // 恢复原始函数
+      chrome.tabs.query = originalQuery;
+    }
+  });
+  
+  header.appendChild(testBtn);
 }
 
 // 全局倒计时存储
