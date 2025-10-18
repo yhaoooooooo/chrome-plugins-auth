@@ -1,6 +1,6 @@
 # Google身份验证器Chrome扩展
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/your-repo/google-authenticator-extension)
+[![Version](https://img.shields.io/badge/version-1.2.2-blue.svg)](https://github.com/your-repo/google-authenticator-extension)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome-Extension-green.svg)](https://chrome.google.com/webstore)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -9,13 +9,14 @@
 ## ✨ 主要特性
 
 - 🔐 **TOTP双因素认证** - 完整的基于时间的一次性密码支持
-- 📱 **二维码扫描** - 支持摄像头扫描、页面扫描和图片导入
+- 📱 **多格式二维码扫描** - 支持摄像头、页面图片、SVG、Canvas等多种扫描方式
 - 🔄 **数据迁移** - 完整支持Google Authenticator迁移格式
 - 🎨 **现代界面** - 美观的用户界面和流畅的交互体验
 - 📊 **智能管理** - 使用统计、自动筛选和排序功能
 - 📋 **一键复制** - 点击验证码直接复制到剪贴板
 - 🔍 **智能搜索** - 按域名或账户名快速筛选
 - 📱 **响应式设计** - 适配不同屏幕尺寸
+- 💾 **数据备份** - 支持JSON格式导入导出
 
 ## 🚀 快速开始
 
@@ -32,10 +33,10 @@
 #### 方法二：使用打包脚本
 ```bash
 # Linux/macOS
-./package.sh
+./scripts/package.sh
 
 # Windows
-package.bat
+scripts/package.bat
 ```
 
 ### 使用指南
@@ -48,9 +49,11 @@ package.bat
 
 ## 📖 详细文档
 
-- 📋 [安装指南](INSTALL.md) - 详细的安装和使用说明
-- 🔧 [开发文档](IFLOW.md) - 技术实现和开发历程
-- ❓ [常见问题](INSTALL.md#常见问题) - 问题排查和解决方案
+- 📚 [文档索引](docs/DOCS.md) - 完整的文档导航和概览
+- 📋 [安装指南](docs/INSTALL.md) - 详细的安装和使用说明
+- 🔧 [开发文档](docs/DEVELOPMENT.md) - 技术实现和开发历程
+- 📤 [导入导出指南](docs/IMPORT_EXPORT.md) - 数据备份和恢复
+- ❓ [常见问题](docs/FAQ.md) - 问题排查和解决方案
 
 ## 🛠️ 技术栈
 
@@ -64,21 +67,29 @@ package.bat
 
 ```
 chrome-tools/
-├── manifest.json          # 扩展配置文件
-├── popup.html             # 弹出窗口界面
-├── popup.js               # 弹出窗口逻辑
-├── background.js          # 后台脚本
-├── content.js             # 内容脚本
-├── js/                    # JavaScript库
-│   ├── authenticator.js   # TOTP算法实现
-│   ├── jsQR.js           # 二维码扫描库
-│   └── qrcode.min.js     # 二维码生成库
-├── icons/                 # 扩展图标
-├── package.sh             # Linux/macOS打包脚本
-├── package.bat            # Windows打包脚本
-├── README.md              # 项目说明
-├── INSTALL.md             # 安装指南
-└── IFLOW.md               # 开发文档
+├── manifest.json              # 扩展配置文件
+├── popup.html                 # 弹出窗口界面
+├── popup.js                   # 弹出窗口逻辑
+├── background.js              # 后台脚本
+├── content.js                 # 内容脚本
+├── js/                        # JavaScript库
+│   ├── authenticator.js       # TOTP算法实现
+│   ├── jsQR.js               # 二维码扫描库
+│   └── qrcode.min.js         # 二维码生成库
+├── icons/                     # 扩展图标
+├── scripts/                   # 打包脚本
+│   ├── package.sh            # Linux/macOS打包脚本
+│   ├── package.bat           # Windows打包脚本
+│   ├── build-crx.sh          # CRX打包脚本
+│   └── build-crx-simple.sh   # 简化CRX打包脚本
+├── docs/                      # 文档目录
+│   ├── INSTALL.md            # 安装指南
+│   ├── DEVELOPMENT.md        # 开发文档
+│   ├── IMPORT_EXPORT.md      # 导入导出指南
+│   ├── FAQ.md                # 常见问题
+│   └── DOCS.md               # 文档索引
+├── IFLOW.md                   # 开发历程
+└── README.md                  # 项目说明
 ```
 
 ## 🔒 安全特性
@@ -129,26 +140,32 @@ chrome-tools/
 ### 打包分发
 ```bash
 # 使用打包脚本
-./package.sh        # Linux/macOS
-package.bat         # Windows
+./scripts/package.sh        # Linux/macOS
+scripts/package.bat         # Windows
 
-# 手动打包
-# 1. 在chrome://extensions/页面
-# 2. 点击"打包扩展程序"
-# 3. 选择项目目录
+# 创建CRX文件
+./scripts/build-crx.sh      # 完整CRX打包
+./scripts/build-crx-simple.sh  # 简化CRX打包
 ```
 
 ## 📝 更新日志
 
-### v1.0.0 (2024-01-XX)
-- 🎉 首次发布
-- ✅ 完整的TOTP功能支持
-- ✅ 二维码扫描和导入
-- ✅ Google Authenticator迁移支持
-- ✅ 现代化用户界面
-- ✅ 智能账户管理
-- ✅ 一键复制功能
-- ✅ 使用统计和排序
+### v1.2.2 - 扫描功能完善版本（2024-01-15）
+- ✅ 完善页面二维码扫描功能，支持多种载体格式
+- ✅ 扩展扫描范围，支持SVG、Canvas、CSS背景图片
+- ✅ 优化扫描体验，添加进度反馈和智能通知
+- ✅ 增强错误处理，完善跨域处理和错误恢复机制
+
+### v1.2.1 - 用户体验优化版本（2024-01-15）
+- ✅ 修复验证码刷新滚动位置问题
+- ✅ 优化验证码更新机制，减少不必要的DOM重建
+- ✅ 智能渲染策略，区分完整渲染和轻量更新
+
+### v1.2.0 - 导入导出功能版本（2024-01-15）
+- ✅ 完整的JSON格式数据导出功能
+- ✅ JSON格式数据导入功能
+- ✅ 二维码导出功能（生成迁移二维码）
+- ✅ 数据验证和完整性检查
 
 ## 🤝 贡献
 
@@ -171,8 +188,8 @@ package.bat         # Windows
 ## 📞 支持
 
 - 📧 提交Issue：[GitHub Issues](https://github.com/your-repo/issues)
-- 📖 查看文档：[项目文档](INSTALL.md)
-- 🔍 常见问题：[FAQ](INSTALL.md#常见问题)
+- 📖 查看文档：[项目文档](docs/DOCS.md)
+- 🔍 常见问题：[FAQ](docs/FAQ.md)
 
 ---
 
