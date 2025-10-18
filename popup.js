@@ -1106,7 +1106,7 @@ document.getElementById('scan-btn').addEventListener('click', async function() {
     // 获取当前活动标签页
     const tabs = await chrome.tabs.query({active: true, currentWindow: true});
     if (!tabs[0]) {
-      alert('无法获取当前标签页信息');
+      showCopyFeedback('无法获取当前标签页信息', 'error');
       return;
     }
     
@@ -1114,9 +1114,12 @@ document.getElementById('scan-btn').addEventListener('click', async function() {
     
     // 检查URL是否支持注入脚本
     if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('moz-extension://')) {
-      alert('无法在此页面使用二维码扫描功能');
+      showCopyFeedback('无法在此页面使用二维码扫描功能', 'error');
       return;
     }
+    
+    // 显示扫描开始提示
+    showCopyFeedback('正在启动二维码扫描...', 'info');
     
     try {
       // 先检查是否已经注入过脚本
@@ -1158,9 +1161,10 @@ document.getElementById('scan-btn').addEventListener('click', async function() {
       chrome.tabs.sendMessage(tab.id, {action: 'scanQR'}, function(response) {
         if (chrome.runtime.lastError) {
           console.error('发送消息失败:', chrome.runtime.lastError);
-          alert('无法与页面通信，请刷新页面后重试。');
+          showCopyFeedback('无法与页面通信，请刷新页面后重试', 'error');
         } else {
           console.log('消息发送成功:', response);
+          showCopyFeedback('二维码扫描已启动，请查看页面', 'success');
         }
       });
       
@@ -1186,13 +1190,13 @@ document.getElementById('scan-btn').addEventListener('click', async function() {
         });
       } catch (fallbackError) {
         console.error('备用扫描方法也失败:', fallbackError);
-        alert('无法注入扫描脚本，请确保页面已完全加载。');
+        showCopyFeedback('无法注入扫描脚本，请确保页面已完全加载', 'error');
       }
     }
     
   } catch (error) {
     console.error('扫描二维码时出错:', error);
-    alert('扫描二维码时出错: ' + error.message);
+    showCopyFeedback('扫描二维码时出错: ' + error.message, 'error');
   }
 });
 

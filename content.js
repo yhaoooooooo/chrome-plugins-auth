@@ -63,19 +63,60 @@ function scanPageForQRCode() {
   `;
   
   scannerOverlay.innerHTML = `
-    <h2>二维码扫描器</h2>
-    <p>将摄像头对准二维码进行扫描</p>
-    <div id="video-container" style="position: relative; margin: 20px;">
-      <video id="qr-video" autoplay playsinline style="max-width: 100%; max-height: 70vh;"></video>
-      <div id="qr-scanner-frame" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 250px; height: 250px; border: 3px solid #4CAF50; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);"></div>
+    <div style="text-align: center; max-width: 500px; margin: 0 auto;">
+      <h2 style="margin: 0 0 10px 0; color: white; font-size: 24px;">🔍 二维码扫描器</h2>
+      <p style="margin: 0 0 20px 0; color: #ccc; font-size: 16px;">将摄像头对准二维码进行扫描，或点击下方按钮扫描页面图片</p>
+      
+      <div id="video-container" style="position: relative; margin: 20px 0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+        <video id="qr-video" autoplay playsinline style="max-width: 100%; max-height: 70vh; display: block;"></video>
+        <div id="qr-scanner-frame" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 250px; height: 250px; border: 3px solid #4CAF50; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5); pointer-events: none;">
+          <div style="position: absolute; top: -3px; left: -3px; right: -3px; bottom: -3px; border: 2px solid rgba(76, 175, 80, 0.3); border-radius: 12px; animation: pulse 2s infinite;"></div>
+        </div>
+        <div id="scanning-indicator" style="position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.7); color: white; padding: 8px 12px; border-radius: 20px; font-size: 12px; display: flex; align-items: center; gap: 6px;">
+          <div style="width: 8px; height: 8px; background: #4CAF50; border-radius: 50%; animation: blink 1s infinite;"></div>
+          正在扫描...
+        </div>
+      </div>
+      
+      <div style="display: flex; gap: 12px; justify-content: center; margin-top: 20px;">
+        <button id="scan-page-btn" style="padding: 12px 24px; background-color: #2196F3; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; transition: all 0.2s ease;">
+          📷 扫描页面图片
+        </button>
+        <button id="close-scanner" style="padding: 12px 24px; background-color: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; transition: all 0.2s ease;">
+          ❌ 关闭扫描器
+        </button>
+      </div>
     </div>
-    <button id="close-scanner" style="padding: 10px 20px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">关闭扫描器</button>
+    
+    <style>
+      @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.3; }
+        100% { opacity: 1; }
+      }
+      @keyframes blink {
+        0%, 50% { opacity: 1; }
+        51%, 100% { opacity: 0; }
+      }
+      #scan-page-btn:hover, #close-scanner:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      }
+    </style>
   `;
   
   document.body.appendChild(scannerOverlay);
   
   const video = document.getElementById('qr-video');
   const closeBtn = document.getElementById('close-scanner');
+  const scanPageBtn = document.getElementById('scan-page-btn');
+  
+  // 页面扫描按钮事件
+  scanPageBtn.addEventListener('click', function() {
+    console.log('用户点击了页面扫描按钮');
+    closeScanner(scannerOverlay);
+    scanPageImages();
+  });
   
   // 尝试访问摄像头
   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -176,7 +217,16 @@ function scanQRFromVideo(video, stream, overlay) {
 function scanPageImages() {
   console.log('开始扫描页面图片中的二维码...');
   
-  // 查找所有图像元素
+  // 显示扫描进度通知
+  showNotification('正在扫描页面中的二维码...', 'info');
+  
+  let scannedCount = 0;
+  let foundQRCount = 0;
+  const totalElements = document.querySelectorAll('img, canvas, svg, [style*="background-image"]').length;
+  
+  console.log('找到', totalElements, '个可能的二维码载体元素');
+  
+  // 扫描所有图像元素
   const images = document.querySelectorAll('img');
   console.log('找到', images.length, '个图像元素');
   
@@ -184,17 +234,23 @@ function scanPageImages() {
     if (img.complete && img.naturalWidth !== 0) {
       // 尝试使用Canvas分析图像
       analyzeImageForQR(img).then(result => {
+        scannedCount++;
         if (result) {
+          foundQRCount++;
           processQRCodeData(result);
         }
+        updateScanProgress(scannedCount, totalElements, foundQRCount);
       });
     } else {
       // 如果图像还未加载完成，等待加载后再处理
       img.addEventListener('load', function() {
         analyzeImageForQR(img).then(result => {
+          scannedCount++;
           if (result) {
+            foundQRCount++;
             processQRCodeData(result);
           }
+          updateScanProgress(scannedCount, totalElements, foundQRCount);
         });
       });
     }
@@ -202,13 +258,57 @@ function scanPageImages() {
   
   // 扫描canvas元素中的二维码
   const canvases = document.querySelectorAll('canvas');
+  console.log('找到', canvases.length, '个canvas元素');
+  
   for (let canvas of canvases) {
     analyzeCanvasForQR(canvas).then(result => {
+      scannedCount++;
       if (result) {
+        foundQRCount++;
         processQRCodeData(result);
       }
+      updateScanProgress(scannedCount, totalElements, foundQRCount);
     });
   }
+  
+  // 扫描SVG元素中的二维码
+  const svgs = document.querySelectorAll('svg');
+  console.log('找到', svgs.length, '个SVG元素');
+  
+  for (let svg of svgs) {
+    analyzeSVGForQR(svg).then(result => {
+      scannedCount++;
+      if (result) {
+        foundQRCount++;
+        processQRCodeData(result);
+      }
+      updateScanProgress(scannedCount, totalElements, foundQRCount);
+    });
+  }
+  
+  // 扫描CSS背景图片
+  const elementsWithBg = document.querySelectorAll('[style*="background-image"]');
+  console.log('找到', elementsWithBg.length, '个带背景图片的元素');
+  
+  for (let element of elementsWithBg) {
+    analyzeBackgroundImageForQR(element).then(result => {
+      scannedCount++;
+      if (result) {
+        foundQRCount++;
+        processQRCodeData(result);
+      }
+      updateScanProgress(scannedCount, totalElements, foundQRCount);
+    });
+  }
+  
+  // 设置超时，如果扫描时间过长则显示结果
+  setTimeout(() => {
+    if (scannedCount === 0) {
+      showNotification('未找到可扫描的图片元素', 'warning');
+    } else if (foundQRCount === 0) {
+      showNotification(`扫描了 ${scannedCount} 个元素，未发现二维码`, 'warning');
+    }
+  }, 5000);
 }
 
 // 分析图像元素中的二维码
@@ -254,20 +354,162 @@ function analyzeImageForQR(img) {
 // 分析Canvas元素中的二维码
 function analyzeCanvasForQR(canvas) {
   return new Promise((resolve) => {
-    const ctx = canvas.getContext('2d');
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    
-    if (typeof jsQR !== 'undefined') {
-      const code = jsQR(imageData.data, imageData.width, imageData.height);
-      if (code) {
-        resolve(code.data);
+    try {
+      const ctx = canvas.getContext('2d');
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      
+      if (typeof jsQR !== 'undefined') {
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        if (code) {
+          console.log('在Canvas中检测到二维码:', code.data);
+          resolve(code.data);
+        } else {
+          resolve(null);
+        }
       } else {
+        console.log('jsQR库未加载，无法扫描Canvas');
         resolve(null);
       }
-    } else {
+    } catch (error) {
+      console.error('分析Canvas时出错:', error);
       resolve(null);
     }
   });
+}
+
+// 分析SVG元素中的二维码
+function analyzeSVGForQR(svg) {
+  return new Promise((resolve) => {
+    try {
+      // 将SVG转换为Canvas
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      // 设置Canvas尺寸
+      const rect = svg.getBoundingClientRect();
+      canvas.width = rect.width || 200;
+      canvas.height = rect.height || 200;
+      
+      // 创建SVG数据URL
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+      const svgUrl = URL.createObjectURL(svgBlob);
+      
+      // 创建图片元素
+      const img = new Image();
+      img.onload = function() {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        if (typeof jsQR !== 'undefined') {
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
+          if (code) {
+            console.log('在SVG中检测到二维码:', code.data);
+            resolve(code.data);
+          } else {
+            resolve(null);
+          }
+        } else {
+          resolve(null);
+        }
+        
+        URL.revokeObjectURL(svgUrl);
+      };
+      
+      img.onerror = function() {
+        console.log('SVG图片加载失败');
+        resolve(null);
+        URL.revokeObjectURL(svgUrl);
+      };
+      
+      img.src = svgUrl;
+    } catch (error) {
+      console.error('分析SVG时出错:', error);
+      resolve(null);
+    }
+  });
+}
+
+// 分析CSS背景图片中的二维码
+function analyzeBackgroundImageForQR(element) {
+  return new Promise((resolve) => {
+    try {
+      const style = window.getComputedStyle(element);
+      const backgroundImage = style.backgroundImage;
+      
+      if (!backgroundImage || backgroundImage === 'none') {
+        resolve(null);
+        return;
+      }
+      
+      // 提取背景图片URL
+      const urlMatch = backgroundImage.match(/url\(['"]?([^'"]+)['"]?\)/);
+      if (!urlMatch) {
+        resolve(null);
+        return;
+      }
+      
+      const imageUrl = urlMatch[1];
+      console.log('分析背景图片:', imageUrl);
+      
+      // 创建图片元素
+      const img = new Image();
+      img.crossOrigin = 'anonymous'; // 尝试跨域访问
+      
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = Math.min(img.naturalWidth, 800);
+        canvas.height = Math.min(img.naturalHeight, 600);
+        
+        const scale = Math.min(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
+        const x = (canvas.width - img.naturalWidth * scale) / 2;
+        const y = (canvas.height - img.naturalHeight * scale) / 2;
+        
+        ctx.drawImage(img, x, y, img.naturalWidth * scale, img.naturalHeight * scale);
+        
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        if (typeof jsQR !== 'undefined') {
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
+          if (code) {
+            console.log('在背景图片中检测到二维码:', code.data);
+            resolve(code.data);
+          } else {
+            resolve(null);
+          }
+        } else {
+          resolve(null);
+        }
+      };
+      
+      img.onerror = function() {
+        console.log('背景图片加载失败:', imageUrl);
+        resolve(null);
+      };
+      
+      img.src = imageUrl;
+    } catch (error) {
+      console.error('分析背景图片时出错:', error);
+      resolve(null);
+    }
+  });
+}
+
+// 更新扫描进度
+function updateScanProgress(scanned, total, found) {
+  if (scanned >= total) {
+    if (found > 0) {
+      showNotification(`扫描完成！发现 ${found} 个二维码`, 'success');
+    } else {
+      showNotification(`扫描完成！共扫描 ${scanned} 个元素，未发现二维码`, 'warning');
+    }
+  } else {
+    // 更新进度通知
+    const progress = Math.round((scanned / total) * 100);
+    showNotification(`扫描进度: ${progress}% (${scanned}/${total})`, 'info');
+  }
 }
 
 // 解析Google Authenticator迁移数据
@@ -1348,36 +1590,85 @@ function closeScanner(overlay) {
 }
 
 // 在页面上显示通知
-function showNotification(message) {
-  // 创建一个临时的DOM元素来显示通知
-  if (!document.getElementById('qr-notification')) {
-    const notification = document.createElement('div');
-    notification.id = 'qr-notification';
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      padding: 10px 20px;
-      background-color: #4CAF50;
-      color: white;
-      border-radius: 4px;
-      z-index: 100000;
-      font-family: Arial, sans-serif;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-    `;
-    document.body.appendChild(notification);
+function showNotification(message, type = 'info') {
+  // 移除已存在的通知
+  const existingNotification = document.getElementById('qr-notification');
+  if (existingNotification) {
+    existingNotification.remove();
   }
   
-  const notification = document.getElementById('qr-notification');
-  notification.textContent = message;
-  notification.style.display = 'block';
+  // 创建新的通知元素
+  const notification = document.createElement('div');
+  notification.id = 'qr-notification';
   
-  // 3秒后隐藏通知
+  // 根据类型设置样式
+  let backgroundColor, icon;
+  switch (type) {
+    case 'success':
+      backgroundColor = '#4CAF50';
+      icon = '✅';
+      break;
+    case 'warning':
+      backgroundColor = '#FF9800';
+      icon = '⚠️';
+      break;
+    case 'error':
+      backgroundColor = '#f44336';
+      icon = '❌';
+      break;
+    case 'info':
+    default:
+      backgroundColor = '#2196F3';
+      icon = 'ℹ️';
+      break;
+  }
+  
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    background-color: ${backgroundColor};
+    color: white;
+    border-radius: 6px;
+    z-index: 100000;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    max-width: 300px;
+    word-wrap: break-word;
+    transition: all 0.3s ease;
+  `;
+  
+  notification.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="font-size: 16px;">${icon}</span>
+      <span>${message}</span>
+    </div>
+  `;
+  
+  document.body.appendChild(notification);
+  
+  // 根据类型设置不同的显示时间
+  let displayTime = 3000;
+  if (type === 'success') {
+    displayTime = 4000;
+  } else if (type === 'warning' || type === 'error') {
+    displayTime = 5000;
+  }
+  
+  // 自动隐藏通知
   setTimeout(() => {
     if (notification.parentNode) {
-      notification.style.display = 'none';
+      notification.style.opacity = '0';
+      notification.style.transform = 'translateX(100%)';
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.remove();
+        }
+      }, 300);
     }
-  }, 3000);
+  }, displayTime);
 }
 
 // 确保在页面完全加载后进行初始化
