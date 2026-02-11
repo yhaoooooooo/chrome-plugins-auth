@@ -2,411 +2,175 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Google Authenticator</title>
   <style>
-    body {
-      width: 350px;
-      padding: 10px;
-      font-family: Arial, sans-serif;
+    /* ========================================
+       CSS 变量系统 - 支持深色/浅色主题自动切换
+       ======================================== */
+    :root {
+      /* 浅色主题默认 */
+      --bg-primary: #ffffff;
+      --bg-secondary: #f8f9fa;
+      --bg-tertiary: #f0f2f5;
+      --bg-card: rgba(255, 255, 255, 0.85);
+      --bg-hover: rgba(255, 255, 255, 0.95);
+      
+      --text-primary: #1a1a2e;
+      --text-secondary: #6c757d;
+      --text-tertiary: #adb5bd;
+      --text-inverse: #ffffff;
+      
+      --border-color: rgba(224, 224, 224, 0.6);
+      --border-light: rgba(240, 240, 240, 0.8);
+      
+      --accent-primary: #4CAF50;
+      --accent-secondary: #2196F3;
+      --accent-danger: #f44336;
+      --accent-warning: #FF9800;
+      
+      --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.04);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+      --shadow-glow: 0 0 20px rgba(76, 175, 80, 0.15);
+      
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+      
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      
+      --transition-fast: 150ms ease;
+      --transition-normal: 300ms ease;
+      --transition-slow: 500ms ease;
+      
+      --glass-blur: blur(10px);
+      --glass-bg: rgba(255, 255, 255, 0.9);
     }
     
+    /* 深色主题 */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: #0f0f1a;
+        --bg-secondary: #1a1a2e;
+        --bg-tertiary: #252538;
+        --bg-card: rgba(37, 37, 56, 0.85);
+        --bg-hover: rgba(45, 45, 68, 0.95);
+        
+        --text-primary: #ffffff;
+        --text-secondary: #a0a0b8;
+        --text-tertiary: #6c6c8a;
+        --text-inverse: #1a1a2e;
+        
+        --border-color: rgba(58, 58, 78, 0.6);
+        --border-light: rgba(45, 45, 68, 0.8);
+        
+        --accent-primary: #69f0ae;
+        --accent-secondary: #82b1ff;
+        --accent-danger: #ff8a80;
+        --accent-warning: #ffd180;
+        
+        --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+        --shadow-glow: 0 0 30px rgba(105, 240, 174, 0.2);
+        
+        --glass-bg: rgba(37, 37, 56, 0.95);
+      }
+    }
+    
+    /* ========================================
+       基础样式重置
+       ======================================== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      width: 380px !important;
+      min-width: 380px !important;
+      max-width: 380px !important;
+      min-height: 500px;
+      max-height: 800px;
+      font-family: var(--font-sans);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+    }
+    
+    /* ========================================
+       滚动条美化
+       ======================================== */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 3px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-tertiary);
+    }
+    
+    /* ========================================
+       主容器
+       ======================================== */
     .container {
       display: flex;
       flex-direction: column;
-      gap: 15px;
+      min-height: 500px;
+      max-height: 800px;
+      background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
     }
     
-    .input-group {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-    
-    label {
-      font-weight: bold;
-    }
-    
-    input, button {
-      padding: 8px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-    }
-    
-    button {
-      background-color: #4CAF50;
-      color: white;
-      cursor: pointer;
-      font-weight: bold;
-    }
-    
-    button:hover {
-      background-color: #45a049;
-    }
-    
-    .scan-btn {
-      background-color: #2196F3;
-    }
-    
-    .scan-btn:hover {
-      background-color: #1976D2;
-    }
-    
-    .token-display {
-      text-align: center;
-      font-size: 24px;
-      font-weight: bold;
-      padding: 10px;
-      background-color: #f0f0f0;
-      border-radius: 4px;
-      margin-top: 10px;
-    }
-    
-    .qr-code {
-      display: flex;
-      justify-content: center;
-      margin-top: 10px;
-    }
-    
-    .qr-code img {
-      max-width: 100%;
-      height: auto;
-    }
-    
-    .secret-key {
-      word-break: break-all;
-      font-family: monospace;
-      font-size: 12px;
-      color: #666;
-      margin-top: 5px;
-    }
-    
-    .account-item {
-      margin-bottom: 12px;
-      border: 1px solid #e8e8e8;
-      border-radius: 12px;
-      padding: 16px;
-      background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
-      transition: all 0.3s ease;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    }
-    
-    .account-item:hover {
-      background: linear-gradient(135deg, #f0f2f5 0%, #f8f9fa 100%);
-      border-color: #d0d7de;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      transform: translateY(-1px);
-    }
-    
-    .account-display {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      position: relative;
-      min-height: 60px;
-    }
-    
-    .account-content {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      flex: 1;
-      min-width: 0;
-      padding-right: 8px;
-    }
-    
-    .account-right {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-shrink: 0;
-    }
-    
-    .account-name-container {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      margin-bottom: 8px;
-    }
-    
-    .account-name {
-      font-size: 11px;
-      color: #666;
-      text-align: center;
-      max-width: 180px;
-      max-height: 32px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      line-height: 1.3;
-      word-break: break-all;
-    }
-    
-    .usage-count {
-      background-color: #4CAF50;
-      color: white;
-      font-size: 9px;
-      font-weight: bold;
-      padding: 2px 6px;
-      border-radius: 10px;
-      min-width: 16px;
-      text-align: center;
-      line-height: 1.2;
-      flex-shrink: 0;
-    }
-    
-    .account-token {
-      font-size: 28px;
-      font-weight: bold;
-      font-family: 'Courier New', monospace;
-      color: #333;
-      letter-spacing: 2px;
-      text-align: center;
-      min-height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      padding: 4px 8px;
-      border-radius: 4px;
-      transition: all 0.2s ease;
-      user-select: none;
-      flex-shrink: 0;
-    }
-    
-    .account-token:hover {
-      background-color: #e3f2fd;
-      color: #1976d2;
-    }
-    
-    .account-token:active {
-      background-color: #bbdefb;
-      transform: scale(0.98);
-    }
-    
-    .countdown-circle {
-      position: relative;
-      width: 40px;
-      height: 40px;
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
-      transition: all 0.3s ease;
-      cursor: pointer;
-    }
-    
-    .countdown-circle:hover {
-      transform: scale(1.1);
-      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15));
-    }
-    
-    .circle-svg {
-      width: 100%;
-      height: 100%;
-      transform: rotate(-90deg);
-    }
-    
-    .circle-bg {
-      fill: none;
-      stroke: #e8e8e8;
-      stroke-width: 3;
-    }
-    
-    .circle-progress {
-      fill: none;
-      stroke: #00C851;
-      stroke-width: 3;
-      stroke-linecap: round;
-      stroke-dasharray: 100;
-      stroke-dashoffset: 0;
-      transition: stroke-dashoffset 1s linear, stroke 0.3s ease;
-      filter: drop-shadow(0 0 3px rgba(0, 200, 81, 0.3));
-    }
-    
-    .circle-progress.warning {
-      stroke: #FF6B35;
-      filter: drop-shadow(0 0 4px rgba(255, 107, 53, 0.4));
-    }
-    
-    .circle-progress.critical {
-      stroke: #FF1744;
-      filter: drop-shadow(0 0 5px rgba(255, 23, 68, 0.5));
-      animation: pulse 1s infinite;
-    }
-    
-    .circle-text {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 12px;
-      font-weight: 900;
-      color: #2c3e50;
-      font-family: 'Courier New', monospace;
-      line-height: 1;
-      text-shadow: 0 1px 2px rgba(255,255,255,0.8);
-    }
-    
-    .circle-text.warning {
-      color: #E65100;
-      text-shadow: 0 1px 2px rgba(255,255,255,0.9);
-    }
-    
-    .circle-text.critical {
-      color: #B71C1C;
-      text-shadow: 0 1px 2px rgba(255,255,255,0.9);
-    }
-    
-    @keyframes pulse {
-      0% { 
-        opacity: 1; 
-        transform: scale(1);
-        filter: drop-shadow(0 0 5px rgba(255, 23, 68, 0.5));
-      }
-      50% { 
-        opacity: 0.7; 
-        transform: scale(1.05);
-        filter: drop-shadow(0 0 8px rgba(255, 23, 68, 0.8));
-      }
-      100% { 
-        opacity: 1; 
-        transform: scale(1);
-        filter: drop-shadow(0 0 5px rgba(255, 23, 68, 0.5));
-      }
-    }
-    
-    .account-menu {
-      position: relative;
-    }
-    
-    .menu-btn {
-      background-color: transparent;
-      color: #999;
-      border: none;
-      border-radius: 50%;
-      width: 24px;
-      height: 24px;
-      font-size: 16px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    
-    .menu-btn:hover {
-      background-color: #e0e0e0;
-      color: #666;
-    }
-    
-    .menu-dropdown {
-      position: absolute;
-      top: 100%;
-      right: 0;
-      background-color: white;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      z-index: 1000;
-      min-width: 120px;
-      overflow: hidden;
-    }
-    
-    .menu-item {
-      display: block;
-      width: 100%;
-      padding: 8px 12px;
-      border: none;
-      background-color: transparent;
-      color: #333;
-      font-size: 12px;
-      text-align: left;
-      cursor: pointer;
-      transition: background-color 0.2s ease;
-    }
-    
-    .menu-item:hover {
-      background-color: #f5f5f5;
-    }
-    
-    .menu-item.delete-btn {
-      color: #f44336;
-    }
-    
-    .menu-item.delete-btn:hover {
-      background-color: #ffebee;
-    }
-    
-    .accounts-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-    
-    .accounts-header h3 {
-      margin: 0;
-      font-size: 16px;
-    }
-    
-    .filter-container {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-    
-    #filter-input {
-      padding: 4px 8px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 12px;
-      width: 150px;
-      transition: border-color 0.2s ease;
-    }
-    
-    #filter-input:focus {
-      outline: none;
-      border-color: #4CAF50;
-      box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
-    }
-    
-    #clear-filter {
-      background-color: #f5f5f5;
-      color: #666;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      width: 20px;
-      height: 20px;
-      font-size: 10px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s ease;
-    }
-    
-    #clear-filter:hover {
-      background-color: #e0e0e0;
-      color: #333;
-    }
-    
-    .account-item.hidden {
-      display: none;
-    }
-    
+    /* ========================================
+       头部区域
+       ======================================== */
     .header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 15px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid #e0e0e0;
+      padding: 16px 20px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+    
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .header-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: var(--shadow-sm);
     }
     
     .header h2 {
-      margin: 0;
-      font-size: 18px;
-      color: #333;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: -0.3px;
     }
     
     .header-buttons {
@@ -415,139 +179,555 @@
       gap: 8px;
     }
     
-    .header-btn {
-      background-color: #f5f5f5;
-      color: #666;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      padding: 6px 10px;
-      font-size: 14px;
+    /* ========================================
+       按钮组件
+       ======================================== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
       cursor: pointer;
-      transition: all 0.2s ease;
-      min-width: 32px;
+      transition: all var(--transition-fast);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .btn::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      transform: translate(-50%, -50%);
+      transition: width 0.6s, height 0.6s;
+    }
+    
+    .btn:active::before {
+      width: 300px;
+      height: 300px;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-primary), #45a049);
+      color: var(--text-inverse);
+      box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+    }
+    
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+    }
+    
+    .btn-secondary:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+    
+    .btn-icon {
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      font-size: 16px;
+      border-radius: var(--radius-sm);
+    }
+    
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+    }
+    
+    .btn-ghost:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+    
+    /* ========================================
+       搜索和筛选区域
+       ======================================== */
+    .search-section {
+      padding: 12px 20px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-light);
+    }
+    
+    .search-container {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .search-input-wrapper {
+      position: relative;
+      flex: 1;
+    }
+    
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-tertiary);
+      font-size: 14px;
+      pointer-events: none;
+      transition: color var(--transition-fast);
+    }
+    
+    #filter-input {
+      width: 100%;
+      padding: 10px 36px 10px 36px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 13px;
+      transition: all var(--transition-fast);
+      /* backdrop-filter removed for compatibility */
+    }
+    
+    #filter-input:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+    }
+    
+    #filter-input:focus + .search-icon {
+      color: var(--accent-primary);
+    }
+    
+    .search-clear {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-tertiary);
+      border: none;
+      border-radius: 50%;
+      color: var(--text-tertiary);
+      font-size: 10px;
+      cursor: pointer;
+      opacity: 0;
+      visibility: hidden;
+      transition: all var(--transition-fast);
+    }
+    
+    .search-clear.visible {
+      opacity: 1;
+      visibility: visible;
+    }
+    
+    .search-clear:hover {
+      background: var(--accent-danger);
+      color: white;
+    }
+    
+    .auto-filter-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      background: linear-gradient(135deg, rgba(76, 175, 80, 0.15), rgba(76, 175, 80, 0.05));
+      border: 1px solid rgba(76, 175, 80, 0.3);
+      border-radius: 20px;
+      font-size: 11px;
+      color: var(--accent-primary);
+      margin-top: 8px;
+      animation: slideIn 0.3s ease;
+    }
+    
+    /* ========================================
+       账户列表区域
+       ======================================== */
+    .accounts-section {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+      position: relative;
+    }
+    
+    .accounts-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding: 0 4px;
+    }
+    
+    .accounts-count {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    
+    .sort-indicator {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+    
+    /* ========================================
+       账户卡片
+       ======================================== */
+    .accounts-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    #accounts-container {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .account-item {
+      position: relative;
+      background: var(--bg-card);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      cursor: grab;
+      transition: all var(--transition-normal);
+      animation: slideUp 0.4s ease backwards;
+    }
+    
+    .account-item:nth-child(1) { animation-delay: 0ms; }
+    .account-item:nth-child(2) { animation-delay: 50ms; }
+    .account-item:nth-child(3) { animation-delay: 100ms; }
+    .account-item:nth-child(4) { animation-delay: 150ms; }
+    .account-item:nth-child(5) { animation-delay: 200ms; }
+    .account-item:nth-child(6) { animation-delay: 250ms; }
+    
+    .account-item:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      border-color: rgba(76, 175, 80, 0.3);
+    }
+    
+    .account-item.dragging {
+      opacity: 0.7;
+      transform: scale(1.02);
+      box-shadow: var(--shadow-lg);
+      cursor: grabbing;
+      z-index: 1000;
+    }
+    
+    .account-item.drag-over {
+      border-color: var(--accent-primary);
+      border-style: dashed;
+      background: rgba(76, 175, 80, 0.05);
+    }
+    
+    .account-item.pinned {
+      border-left: 3px solid var(--accent-primary);
+    }
+    
+    .account-item.hidden {
+      display: none;
+    }
+    
+    .account-item.matched {
+      border-left: 4px solid var(--accent-primary);
+      background: rgba(76, 175, 80, 0.05);
+    }
+    
+    .account-item:nth-child(1) { animation-delay: 0ms; }
+    .account-item:nth-child(2) { animation-delay: 50ms; }
+    .account-item:nth-child(3) { animation-delay: 100ms; }
+    .account-item:nth-child(4) { animation-delay: 150ms; }
+    .account-item:nth-child(5) { animation-delay: 200ms; }
+    .account-item:nth-child(6) { animation-delay: 250ms; }
+    
+    .account-item:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      border-color: rgba(76, 175, 80, 0.3);
+    }
+    
+    .account-item.dragging {
+      opacity: 0.7;
+      transform: scale(1.02);
+      box-shadow: var(--shadow-lg);
+      cursor: grabbing;
+      z-index: 1000;
+    }
+    
+    .account-item.drag-over {
+      border-color: var(--accent-primary);
+      border-style: dashed;
+      background: rgba(76, 175, 80, 0.05);
+    }
+    
+    .account-item.pinned {
+      border-left: 3px solid var(--accent-primary);
+    }
+    
+    .account-item.hidden {
+      display: none;
+    }
+    
+    /* 拖拽手柄 */
+    .drag-handle {
+      position: absolute;
+      left: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      cursor: grab;
+      opacity: 0;
+      transition: opacity var(--transition-fast);
+    }
+    
+    .account-item:hover .drag-handle {
+      opacity: 0.4;
+    }
+    
+    .drag-handle:hover {
+      opacity: 0.8 !important;
+    }
+    
+    .drag-handle span {
+      width: 4px;
+      height: 4px;
+      background: var(--text-tertiary);
+      border-radius: 50%;
+    }
+    
+    .account-content {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-left: 20px;
+      width: calc(100% - 20px);
+    }
+    
+    .account-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .account-info {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .account-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.3;
+    }
+    
+    .account-issuer {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+    
+    .account-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    
+    .account-token-wrapper {
+      flex: 1;
+      display: flex;
+      justify-content: flex-start;
+    }
+    
+    /* ========================================
+       验证码显示
+       ======================================== */
+    .account-token {
+      font-family: var(--font-mono);
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: 4px;
+      cursor: pointer;
+      padding: 10px 16px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-tertiary);
+      transition: all var(--transition-fast);
+      user-select: none;
+      position: relative;
+      overflow: hidden;
+      white-space: nowrap;
+      display: inline-block;
+    }
+    
+    .account-token::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: left 0.5s;
+    }
+    
+    .account-token:hover::before {
+      left: 100%;
+    }
+    
+    .account-token:hover {
+      background: var(--accent-primary);
+      color: var(--text-inverse);
+      transform: scale(1.02);
+    }
+    
+    .account-token:active {
+      transform: scale(0.98);
+    }
+    
+    .account-token.copied {
+      animation: tokenCopied 0.6s ease;
+    }
+    
+    .account-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    
+    /* ========================================
+       倒计时圆圈
+       ======================================== */
+    .countdown-wrapper {
+      position: relative;
+      width: 40px;
+      height: 40px;
+      flex-shrink: 0;
+    }
+    
+    .countdown-circle {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+      transform-origin: center;
+    }
+    
+    .countdown-bg {
+      fill: none;
+      stroke: var(--border-color);
+      stroke-width: 3;
+    }
+    
+    .countdown-progress {
+      fill: none;
+      stroke: url(#countdownGradient);
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-dasharray: 100;
+      stroke-dashoffset: 0;
+      transition: stroke-dashoffset 1s linear;
+      filter: drop-shadow(0 0 4px rgba(76, 175, 80, 0.3));
+    }
+    
+    .countdown-progress.warning {
+      stroke: url(#warningGradient);
+      filter: drop-shadow(0 0 4px rgba(255, 152, 0, 0.4));
+    }
+    
+    .countdown-progress.critical {
+      stroke: url(#criticalGradient);
+      filter: drop-shadow(0 0 6px rgba(244, 67, 54, 0.5));
+      animation: pulse 1s infinite;
+    }
+    
+    .countdown-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    
+    /* ========================================
+       菜单按钮
+       ======================================== */
+    .account-menu {
+      position: relative;
+    }
+    
+    .menu-btn {
+      width: 32px;
       height: 32px;
       display: flex;
       align-items: center;
       justify-content: center;
-    }
-    
-    .header-btn:hover {
-      background-color: #e0e0e0;
-      color: #333;
-      transform: translateY(-1px);
-    }
-    
-    .export-btn:hover {
-      background-color: #e8f5e8;
-      color: #4CAF50;
-      border-color: #4CAF50;
-    }
-    
-    .import-btn:hover {
-      background-color: #e3f2fd;
-      color: #2196F3;
-      border-color: #2196F3;
-    }
-    
-    .add-account-btn {
-      background-color: #4CAF50;
-      color: white;
+      background: transparent;
       border: none;
-      border-radius: 6px;
-      padding: 8px 16px;
-      font-size: 12px;
-      font-weight: bold;
+      border-radius: var(--radius-sm);
+      color: var(--text-tertiary);
+      font-size: 18px;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all var(--transition-fast);
     }
     
-    .add-account-btn:hover {
-      background-color: #45a049;
-      transform: translateY(-1px);
+    .menu-btn:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
     }
     
-    .add-account-panel {
-      margin-top: 15px;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
-      background-color: #fafafa;
-      animation: slideDown 0.3s ease;
+    .menu-dropdown {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background: var(--bg-card);
+      /* backdrop-filter removed for compatibility */
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-lg);
+      min-width: 140px;
+      overflow: hidden;
+      z-index: 1000;
+      animation: menuSlide 0.2s ease;
     }
     
-    .panel-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 16px;
-      background-color: #f0f0f0;
-      border-bottom: 1px solid #e0e0e0;
-      border-radius: 8px 8px 0 0;
-    }
-    
-    .panel-header h3 {
-      margin: 0;
-      font-size: 14px;
-      color: #333;
-    }
-    
-    .close-btn {
-      background: none;
-      border: none;
-      font-size: 16px;
-      color: #666;
-      cursor: pointer;
-      padding: 4px;
-      border-radius: 4px;
-      transition: all 0.2s ease;
-    }
-    
-    .close-btn:hover {
-      background-color: #e0e0e0;
-      color: #333;
-    }
-    
-    .button-group {
-      display: flex;
-      gap: 8px;
-      margin-top: 12px;
-    }
-    
-    .primary-btn {
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      padding: 8px 16px;
-      font-size: 12px;
-      font-weight: bold;
-      cursor: pointer;
-      flex: 1;
-      transition: all 0.2s ease;
-    }
-    
-    .primary-btn:hover {
-      background-color: #45a049;
-    }
-    
-    .secondary-btn {
-      background-color: #2196F3;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      padding: 8px 12px;
-      font-size: 11px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    
-    .secondary-btn:hover {
-      background-color: #1976D2;
-    }
-    
-    @keyframes slideDown {
+    @keyframes menuSlide {
       from {
         opacity: 0;
-        transform: translateY(-10px);
+        transform: translateY(-8px);
       }
       to {
         opacity: 1;
@@ -555,128 +735,527 @@
       }
     }
     
-    .backup-section {
-      margin-top: 15px;
-      padding-top: 15px;
-      border-top: 1px solid #e0e0e0;
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 10px 14px;
+      border: none;
+      background: transparent;
+      color: var(--text-primary);
+      font-size: 12px;
+      text-align: left;
+      cursor: pointer;
+      transition: all var(--transition-fast);
     }
     
-    .backup-header {
+    .menu-item:hover {
+      background: var(--bg-hover);
+    }
+    
+    .menu-item.delete:hover {
+      background: rgba(244, 67, 54, 0.1);
+      color: var(--accent-danger);
+    }
+    
+    /* ========================================
+       空状态
+       ======================================== */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+      text-align: center;
+    }
+    
+    .empty-icon {
+      width: 80px;
+      height: 80px;
+      background: var(--bg-tertiary);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      margin-bottom: 20px;
+      animation: float 3s ease-in-out infinite;
+    }
+    
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    
+    .empty-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+    
+    .empty-desc {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    
+    /* ========================================
+       添加账户面板
+       ======================================== */
+    .add-account-panel {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      /* backdrop-filter removed for compatibility */
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      animation: fadeIn 0.3s ease;
+    }
+    
+    .add-account-panel.visible {
+      display: flex;
+    }
+    
+    .panel-content {
+      width: 100%;
+      max-width: 340px;
+      background: var(--bg-card);
+      /* backdrop-filter removed for compatibility */
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      animation: slideUp 0.4s ease;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .panel-header h3 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    
+    .panel-body {
+      padding: 20px;
+    }
+    
+    .form-group {
+      margin-bottom: 16px;
+    }
+    
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+    
+    .form-input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 14px;
+      transition: all var(--transition-fast);
+    }
+    
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+    }
+    
+    .form-input::placeholder {
+      color: var(--text-tertiary);
+    }
+    
+    .form-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    
+    .form-actions .btn {
+      flex: 1;
+    }
+    
+    /* ========================================
+       快捷模板
+       ======================================== */
+    .quick-templates {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-light);
+    }
+    
+    .templates-title {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
       margin-bottom: 10px;
     }
     
-    .backup-header h4 {
-      margin: 0;
-      font-size: 13px;
-      color: #666;
-      font-weight: normal;
-    }
-    
-    .backup-buttons {
+    .templates-grid {
       display: flex;
+      flex-wrap: wrap;
       gap: 8px;
     }
     
-    .backup-btn {
-      flex: 1;
+    .template-btn {
       padding: 6px 12px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 11px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--text-secondary);
       cursor: pointer;
-      transition: all 0.2s ease;
-      background-color: #f9f9f9;
-      color: #666;
+      transition: all var(--transition-fast);
     }
     
-    .backup-btn:hover {
-      background-color: #e9e9e9;
-      color: #333;
+    .template-btn:hover {
+      background: var(--accent-primary);
+      border-color: var(--accent-primary);
+      color: var(--text-inverse);
     }
     
-    .backup-btn.danger-btn {
-      background-color: #fff5f5;
-      color: #d32f2f;
-      border-color: #ffcdd2;
+    /* ========================================
+       Toast 通知
+       ======================================== */
+    .toast-container {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
     }
     
-    .backup-btn.danger-btn:hover {
-      background-color: #ffebee;
-      color: #b71c1c;
-      border-color: #ef9a9a;
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 18px;
+      background: var(--bg-card);
+      /* backdrop-filter removed for compatibility */
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-lg);
+      font-size: 13px;
+      color: var(--text-primary);
+      animation: toastSlide 0.4s ease;
+      pointer-events: auto;
+    }
+    
+    .toast.success {
+      border-color: rgba(76, 175, 80, 0.4);
+      background: rgba(76, 175, 80, 0.1);
+    }
+    
+    .toast.error {
+      border-color: rgba(244, 67, 54, 0.4);
+      background: rgba(244, 67, 54, 0.1);
+    }
+    
+    @keyframes toastSlide {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    /* ========================================
+       动画关键帧
+       ======================================== */
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    
+    @keyframes tokenCopied {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+    
+    /* ========================================
+       SVG 渐变定义
+       ======================================== */
+    .svg-defs {
+      position: absolute;
+      width: 0;
+      height: 0;
+    }
+    
+    /* ========================================
+       响应式优化
+       ======================================== */
+    @media (max-width: 400px) {
+      body {
+        width: 100vw;
+      }
+      
+      .account-token {
+        font-size: 22px;
+        letter-spacing: 2px;
+      }
+      
+      .account-content {
+        margin-left: 12px;
+      }
     }
   </style>
 </head>
 <body>
+  <!-- SVG 渐变定义 -->
+  <svg class="svg-defs">
+    <defs>
+      <linearGradient id="countdownGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#4CAF50;stop-opacity:1" />
+        <stop offset="100%" style="stop-color:#69f0ae;stop-opacity:1" />
+      </linearGradient>
+      <linearGradient id="warningGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#FF9800;stop-opacity:1" />
+        <stop offset="100%" style="stop-color:#FFD180;stop-opacity:1" />
+      </linearGradient>
+      <linearGradient id="criticalGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#f44336;stop-opacity:1" />
+        <stop offset="100%" style="stop-color:#ff8a80;stop-opacity:1" />
+      </linearGradient>
+    </defs>
+  </svg>
+
   <div class="container">
-    <div class="header">
-      <h2>Google Authenticator</h2>
-      <div class="header-buttons">
-        <button id="export-btn" class="header-btn export-btn" title="导出账户数据">📤</button>
-        <button id="import-btn-header" class="header-btn import-btn" title="导入账户数据">📥</button>
-        <button id="add-account-btn" class="add-account-btn">+ 添加账户</button>
+    <!-- 头部 -->
+    <header class="header">
+      <div class="header-brand">
+        <div class="header-icon">🔐</div>
+        <h2>Authenticator</h2>
       </div>
-    </div>
-    
-    <div id="accounts-list">
-      <div class="accounts-header">
-        <h3>已保存账户</h3>
-        <div class="filter-container">
-          <input type="text" id="filter-input" placeholder="筛选域名或账户名..." />
-          <button id="clear-filter" title="清除筛选">✕</button>
+      <div class="header-buttons">
+        <button id="import-btn-header" class="btn btn-icon btn-ghost" title="导入数据">📥</button>
+        <button id="export-btn" class="btn btn-icon btn-ghost" title="导出数据">📤</button>
+        <button id="add-account-btn" class="btn btn-primary">
+          <span>+</span>
+          <span>添加</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 搜索区域 -->
+    <section class="search-section">
+      <div class="search-container">
+        <div class="search-input-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="filter-input" placeholder="搜索账户或域名...">
+          <button id="clear-filter" class="search-clear">✕</button>
         </div>
       </div>
-      <div id="accounts-container"></div>
-      <div id="no-results" style="display: none; text-align: center; color: #666; padding: 20px;">
-        没有找到匹配的账户
+      <div id="auto-filter-indicator" class="auto-filter-badge" style="display: none;">
+        <span>🌐</span>
+        <span id="filter-domain"></span>
       </div>
-    </div>
-    
-    <!-- 添加账户的折叠面板 -->
-    <div id="add-account-panel" class="add-account-panel" style="display: none;">
+    </section>
+
+    <!-- 账户列表 -->
+    <section class="accounts-section">
+      <div class="accounts-header">
+        <span class="accounts-count" id="accounts-count">0 个账户</span>
+        <span class="sort-indicator" id="sort-indicator">拖拽排序</span>
+      </div>
+      
+      <div id="accounts-container" class="accounts-container">
+        <!-- 账户卡片将动态插入 -->
+      </div>
+      
+      <!-- 空状态 -->
+      <div id="empty-state" class="empty-state" style="display: none;">
+        <div class="empty-icon">🔑</div>
+        <h3 class="empty-title">还没有账户</h3>
+        <p class="empty-desc">添加您的第一个双因素认证账户<br>保障账号安全</p>
+        <button class="btn btn-primary" onclick="document.getElementById('add-account-btn').click()">
+          + 添加账户
+        </button>
+      </div>
+    </section>
+  </div>
+
+  <!-- 添加账户面板 -->
+  <div id="add-account-panel" class="add-account-panel">
+    <div class="panel-content">
       <div class="panel-header">
         <h3>添加新账户</h3>
-        <button id="close-panel" class="close-btn">✕</button>
+        <button id="close-panel" class="btn btn-icon btn-ghost">✕</button>
       </div>
       
-      <div class="input-group">
-        <label for="secret-key">输入密钥 (Secret Key):</label>
-        <input type="text" id="secret-key" placeholder="输入TOTP密钥">
-      </div>
-      
-      <div class="input-group">
-        <label for="account-name">账户名称:</label>
-        <input type="text" id="account-name" placeholder="例如: Gmail, GitHub等">
-      </div>
-      
-      <div class="button-group">
-        <button id="add-btn" class="primary-btn">添加账户</button>
-        <button id="scan-btn" class="secondary-btn">扫描二维码</button>
-        <button id="import-btn" class="secondary-btn">导入图片</button>
-        <input type="file" id="qr-file-input" accept="image/*" style="display: none;">
-      </div>
-      
-      <div class="backup-section">
-        <div class="backup-header">
-          <h4>数据管理</h4>
+      <div class="panel-body">
+        <div class="form-group">
+          <label class="form-label">密钥 (Secret Key)</label>
+          <input type="text" id="secret-key" class="form-input" placeholder="输入或粘贴 TOTP 密钥">
         </div>
-        <div class="backup-buttons">
-          <button id="export-qr-btn" class="backup-btn">导出二维码</button>
-          <button id="clear-all-btn" class="backup-btn danger-btn">清空所有</button>
+        
+        <div class="form-group">
+          <label class="form-label">账户名称</label>
+          <input type="text" id="account-name" class="form-input" placeholder="例如: Gmail">
         </div>
-      </div>
-      
-      <div id="token-container" style="display: none;">
-        <div class="token-display" id="current-token">--:--:--</div>
-        <div class="secret-key">密钥: <span id="display-secret"></span></div>
-        <div class="qr-code" id="qr-display"></div>
+        
+        <div class="form-group">
+          <label class="form-label">服务商 (可选)</label>
+          <input type="text" id="account-issuer" class="form-input" placeholder="例如: Google">
+        </div>
+        
+        <div class="quick-templates">
+          <div class="templates-title">快捷添加</div>
+          <div class="templates-grid">
+            <button class="template-btn" data-issuer="Google">Google</button>
+            <button class="template-btn" data-issuer="GitHub">GitHub</button>
+            <button class="template-btn" data-issuer="Microsoft">Microsoft</button>
+            <button class="template-btn" data-issuer="AWS">AWS</button>
+            <button class="template-btn" data-issuer="Cloudflare">Cloudflare</button>
+            <button class="template-btn" data-issuer="其他">其他</button>
+          </div>
+        </div>
+        
+        <div class="form-actions">
+          <button id="add-btn" class="btn btn-primary">确认添加</button>
+          <button id="scan-btn" class="btn btn-secondary">📷 扫码</button>
+        </div>
+        
+        <div class="quick-templates" style="margin-top: 20px;">
+          <div class="templates-title">数据管理</div>
+          <div class="templates-grid">
+            <button id="export-qr-btn" class="template-btn">导出二维码</button>
+            <button id="clear-all-btn" class="template-btn" style="color: var(--accent-danger);">清空所有</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
+  <!-- 编辑账户面板 -->
+  <div id="edit-account-panel" class="add-account-panel">
+    <div class="panel-content">
+      <div class="panel-header">
+        <h3>编辑账户</h3>
+        <button id="close-edit-panel" class="btn btn-icon btn-ghost">✕</button>
+      </div>
+      
+      <div class="panel-body">
+        <input type="hidden" id="edit-account-original-name">
+        
+        <div class="form-group">
+          <label class="form-label">账户名称 <span style="color: var(--accent-primary);">*</span></label>
+          <input type="text" id="edit-account-name" class="form-input" placeholder="用于搜索的名称，可包含域名">
+          <p style="font-size: 11px; color: var(--text-tertiary); margin-top: 4px;">
+            💡 提示：在名称中加入域名可自动匹配
+          </p>
+          <div class="quick-templates" style="margin-top: 8px;">
+            <div class="templates-grid">
+              <button class="template-btn domain-template" data-domain="github.com">github.com</button>
+              <button class="template-btn domain-template" data-domain="google.com">google.com</button>
+              <button class="template-btn domain-template" data-domain="gitlab.com">gitlab.com</button>
+              <button class="template-btn domain-template" data-domain="aws.amazon.com">aws.amazon.com</button>
+              <button class="template-btn domain-template" data-domain="azure.com">azure.com</button>
+              <button class="template-btn domain-template" data-domain="cloudflare.com">cloudflare.com</button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">显示名称（可选）</label>
+          <input type="text" id="edit-display-name" class="form-input" placeholder="界面上显示的名称">
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">服务商</label>
+          <input type="text" id="edit-account-issuer" class="form-input" placeholder="例如: Google, GitHub">
+        </div>
+        
+        <div class="form-actions">
+          <button id="save-edit-btn" class="btn btn-primary">保存修改</button>
+          <button id="cancel-edit-btn" class="btn btn-secondary">取消</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast 容器 -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- 隐藏的文件输入 -->
+  <input type="file" id="qr-file-input" accept="image/*" style="display: none;">
+
+  <!-- 第三方库 -->
   <script src="js/jsQR.js"></script>
   <script src="js/qrcode.min.js"></script>
   <script src="js/authenticator.js"></script>
+  
+  <!-- 模块系统 (按依赖顺序加载) -->
+  <script src="js/modules/utils.js"></script>
+  <script src="js/modules/storage.js"></script>
+  <script src="js/modules/totp.js"></script>
+  <script src="js/modules/filter.js"></script>
+  <script src="js/modules/scanner.js"></script>
+  <script src="js/modules/panel.js"></script>
+  <script src="js/modules/edit.js"></script>
+  <script src="js/modules/menu.js"></script>
+  <script src="js/modules/accounts.js"></script>
+  
+  <!-- 主入口 -->
   <script src="popup.js"></script>
 </body>
 </html>

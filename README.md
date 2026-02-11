@@ -1,6 +1,6 @@
 # Google身份验证器Chrome扩展
 
-[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/your-repo/google-authenticator-extension)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](https://github.com/your-repo/google-authenticator-extension)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome-Extension-green.svg)](https://chrome.google.com/webstore)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -16,8 +16,10 @@
 - 📋 **一键复制** - 点击验证码直接复制到剪贴板
 - 🔍 **智能搜索** - 按域名或账户名快速筛选
 - 🌐 **域名自动筛选** - 根据当前访问的域名自动筛选相关MFA账户
+- 🎨 **主题切换** - 自动适配深色/浅色主题
 - 📱 **响应式设计** - 适配不同屏幕尺寸
 - 💾 **数据备份** - 支持JSON格式导入导出
+- 🧩 **模块化架构** - 清晰的代码结构，易于维护和扩展
 
 ## 🚀 快速开始
 
@@ -42,12 +44,13 @@ scripts/package.bat
 
 ### 使用指南
 
-1. **添加账户**：点击"+ 添加账户"按钮
-2. **查看验证码**：扩展自动显示6位验证码
-3. **复制验证码**：点击验证码直接复制
-4. **筛选账户**：使用搜索框快速查找
-5. **自动筛选**：访问网站时自动显示相关MFA账户
-6. **管理账户**：点击"⋯"菜单进行管理
+1. **添加账户**：点击"+ 添加账户"按钮，输入密钥和账户名称
+2. **查看验证码**：扩展自动显示6位验证码和倒计时
+3. **复制验证码**：点击验证码直接复制到剪贴板
+4. **筛选账户**：使用搜索框快速查找，支持实时过滤
+5. **自动筛选**：访问网站时自动显示相关MFA账户（绿色高亮）
+6. **拖拽排序**：拖拽账户卡片调整显示顺序
+7. **管理账户**：点击"⋯"菜单进行编辑或删除
 
 ## 📖 详细文档
 
@@ -63,7 +66,7 @@ scripts/package.bat
 - **加密**：Web Crypto API (HMAC-SHA1)
 - **二维码**：jsQR (扫描), qrcode.js (生成)
 - **存储**：Chrome Storage API
-- **架构**：Chrome Extension Manifest V3
+- **架构**：Chrome Extension Manifest V3 + 模块化设计
 
 ## 📁 项目结构
 
@@ -71,28 +74,45 @@ scripts/package.bat
 chrome-tools/
 ├── manifest.json              # 扩展配置文件
 ├── popup.html                 # 弹出窗口界面
-├── popup.js                   # 弹出窗口逻辑
+├── popup.js                   # 主入口（精简版，约80行）
 ├── background.js              # 后台脚本
 ├── content.js                 # 内容脚本
 ├── js/                        # JavaScript库
 │   ├── authenticator.js       # TOTP算法实现
 │   ├── jsQR.js               # 二维码扫描库
-│   └── qrcode.min.js         # 二维码生成库
+│   ├── qrcode.min.js         # 二维码生成库
+│   └── modules/              # 模块化组件 ⭐新增
+│       ├── utils.js          # 工具函数（防抖、复制、toast等）
+│       ├── storage.js        # 存储操作模块
+│       ├── accounts.js       # 账户管理模块
+│       ├── filter.js         # 筛选搜索模块
+│       ├── scanner.js        # 二维码扫描模块
+│       ├── menu.js           # 菜单管理模块
+│       ├── edit.js           # 编辑功能模块
+│       ├── panel.js          # 面板管理模块
+│       └── totp.js           # TOTP生成模块
 ├── icons/                     # 扩展图标
 ├── scripts/                   # 打包脚本
 │   ├── package.sh            # Linux/macOS打包脚本
 │   ├── package.bat           # Windows打包脚本
-│   ├── build-crx.sh          # CRX打包脚本
-│   └── build-crx-simple.sh   # 简化CRX打包脚本
+│   └── build-crx.sh          # CRX打包脚本
 ├── docs/                      # 文档目录
 │   ├── INSTALL.md            # 安装指南
 │   ├── DEVELOPMENT.md        # 开发文档
 │   ├── IMPORT_EXPORT.md      # 导入导出指南
 │   ├── FAQ.md                # 常见问题
 │   └── DOCS.md               # 文档索引
-├── IFLOW.md                   # 开发历程
 └── README.md                  # 项目说明
 ```
+
+### 🧩 模块化架构优势
+
+- **单一职责**：每个模块只负责一个功能领域
+- **易于维护**：修改功能时只需找到对应模块
+- **代码复用**：模块间可以相互调用，避免重复代码
+- **便于测试**：可以单独测试每个模块的功能
+- **清晰的依赖关系**：按依赖顺序加载，避免循环依赖
+- **开发友好**：新手可以快速理解代码结构
 
 ## 🔒 安全特性
 
@@ -112,15 +132,17 @@ chrome-tools/
 ### 账户管理
 - 智能排序（按使用频率）
 - 快速搜索和筛选
-- 域名自动筛选（根据当前网站）
+- 域名自动筛选（根据当前网站，高亮显示）
+- 拖拽排序功能
 - 一键复制验证码
-- 圆形倒计时显示
+- 圆形倒计时显示（最后10秒变黄，最后5秒变红）
 
 ### 数据迁移
 - 支持Google Authenticator迁移格式
 - 自动解析protobuf和明文数据
 - 批量导入多个账户
 - 保留issuer信息
+- JSON格式导入导出
 
 ## 📊 支持的格式
 
@@ -140,6 +162,15 @@ chrome-tools/
 2. 在Chrome中加载扩展（开发者模式）
 3. 修改代码后点击"重新加载"按钮
 
+### 模块开发指南
+```javascript
+// 示例：添加新模块
+// 1. 在 js/modules/ 下创建新文件
+// 2. 实现功能函数
+// 3. 在 popup.html 中引入（放在依赖模块之后）
+// 4. 在 popup.js 中调用
+```
+
 ### 打包分发
 ```bash
 # 使用打包脚本
@@ -148,19 +179,34 @@ scripts/package.bat         # Windows
 
 # 创建CRX文件
 ./scripts/build-crx.sh      # 完整CRX打包
-./scripts/build-crx-simple.sh  # 简化CRX打包
 ```
 
 ## 📝 更新日志
 
-### v1.3.0 - 域名自动筛选版本（2024-01-15）
+### v1.4.0 - 代码重构版本（2025-02-11）
+- ✅ **模块化重构** - 将1600行的popup.js拆分为9个独立模块
+  - `utils.js` - 工具函数（150行）
+  - `storage.js` - 存储操作（150行）
+  - `accounts.js` - 账户管理（280行）
+  - `filter.js` - 筛选搜索（150行）
+  - `scanner.js` - 扫描导入（180行）
+  - `menu.js` - 菜单管理（80行）
+  - `edit.js` - 编辑功能（150行）
+  - `panel.js` - 面板管理（100行）
+  - `totp.js` - TOTP生成（60行）
+- ✅ 主入口文件精简至80行，仅负责初始化和事件绑定
+- ✅ 清晰的模块依赖关系，按依赖顺序加载
+- ✅ 每个模块独立负责特定功能，便于维护和测试
+- ✅ 统一的事件绑定机制（safeBind）
+
+### v1.3.0 - 域名自动筛选版本（2025-01-15）
 - ✅ 新增域名自动筛选功能，根据当前访问的域名自动筛选相关MFA账户
 - ✅ 智能匹配算法，支持完全匹配、包含匹配、关键词匹配等多种模式
 - ✅ 增强的筛选体验，高匹配度账户高亮显示
 - ✅ 自动筛选指示器，显示匹配数量和筛选状态
 - ✅ 搜不到匹配时自动显示所有账户
 
-### v1.2.2 - 扫描功能完善版本（2024-01-15）
+### v1.2.2 - 扫描功能完善版本（2025-01-15）
 - ✅ 完善页面二维码扫描功能，支持多种载体格式
 - ✅ 扩展扫描范围，支持SVG、Canvas、CSS背景图片
 - ✅ 优化扫描体验，添加进度反馈和智能通知
@@ -187,6 +233,13 @@ scripts/package.bat         # Windows
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 打开Pull Request
 
+### 代码规范
+- 每个模块独立负责一个功能领域
+- 使用 `console.log('[ModuleName] message')` 格式输出日志
+- 错误处理使用 try-catch 并在控制台输出详细错误信息
+- 函数和变量使用驼峰命名法
+- 添加适当的注释说明功能
+
 ## 📄 许可证
 
 本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
@@ -204,3 +257,5 @@ scripts/package.bat         # Windows
 ---
 
 **⭐ 如果这个项目对您有帮助，请给它一个星标！**
+
+**💡 模块化重构后的代码更易维护、更易于扩展，欢迎开发者参与贡献！**
