@@ -176,6 +176,37 @@ function highlightMatchedAccounts(matchedNames) {
   }
 }
 
+/**
+ * 取消自动筛选
+ */
+function cancelAutoFilter() {
+  try {
+    console.log('[Filter] 取消自动筛选');
+
+    // 隐藏指示器
+    hideAutoFilterIndicator();
+
+    // 显示所有账户
+    const items = document.querySelectorAll('.account-item');
+    items.forEach(item => {
+      item.classList.remove('hidden');
+      item.classList.remove('matched');
+      item.style.opacity = '1';
+    });
+
+    // 更新计数
+    const countElement = document.getElementById('accounts-count');
+    if (countElement) {
+      countElement.textContent = `${items.length} 个账户`;
+    }
+
+    console.log('[Filter] 自动筛选已取消');
+
+  } catch (error) {
+    console.error('[Filter] 取消自动筛选错误:', error);
+  }
+}
+
 // 导出模块
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -184,6 +215,7 @@ if (typeof module !== 'undefined' && module.exports) {
     enhancedFilterAccounts,
     showAutoFilterIndicator,
     hideAutoFilterIndicator,
-    highlightMatchedAccounts
+    highlightMatchedAccounts,
+    cancelAutoFilter
   };
 }
